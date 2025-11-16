@@ -30,29 +30,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// TEMPORARY: Database migration endpoint (REMOVE AFTER FIRST USE!)
-app.get('/setup-database', async (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const pool = require('./config/database');
-
-    const schemaSQL = fs.readFileSync(
-      path.join(__dirname, 'config/schema.sql'),
-      'utf8'
-    );
-
-    await pool.query(schemaSQL);
-    res.json({
-      message: '✅ Database setup complete! Tables created successfully.',
-      note: 'IMPORTANT: Remove this endpoint from server.js for security!'
-    });
-  } catch (error) {
-    console.error('Migration error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
