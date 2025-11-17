@@ -1872,47 +1872,69 @@ const PickleballTournamentManager = () => {
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-3">
-              <select
-                value={form.teamPlayer1?.id || ''}
-                onChange={(e) => {
-                  const player1Id = e.target.value;
-                  if (!player1Id) {
-                    setForm(f => ({ ...f, teamPlayer1: null }));
-                    return;
-                  }
-                  const player1 = players.find(p => p.id === player1Id);
-                  if (player1) {
-                    setForm(f => ({ ...f, teamPlayer1: player1 }));
-                  }
-                }}
-                className="h-11 rounded-lg border border-brand-gray px-3"
-              >
-                <option value="">Select Player 1</option>
-                {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id)).map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={form.teamPlayer1?.id || ''}
+                  onChange={(e) => {
+                    const player1Id = e.target.value;
+                    if (!player1Id) {
+                      setForm(f => ({ ...f, teamPlayer1: null }));
+                      return;
+                    }
+                    const player1 = players.find(p => p.id === player1Id);
+                    if (player1) {
+                      setForm(f => ({ ...f, teamPlayer1: player1 }));
+                    }
+                  }}
+                  className="h-11 rounded-lg border border-brand-gray px-3 w-full pr-8"
+                >
+                  <option value="">Select Player 1</option>
+                  {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id) && p.id !== form.teamPlayer2?.id).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
+                  ))}
+                </select>
+                {form.teamPlayer1 && (
+                  <button
+                    onClick={() => setForm(f => ({ ...f, teamPlayer1: null }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600 hover:text-red-800 font-bold"
+                    title="Clear selection"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
-              <select
-                value={form.teamPlayer2?.id || ''}
-                onChange={(e) => {
-                  const player2Id = e.target.value;
-                  if (!player2Id) {
-                    setForm(f => ({ ...f, teamPlayer2: null }));
-                    return;
-                  }
-                  const player2 = players.find(p => p.id === player2Id);
-                  if (player2) {
-                    setForm(f => ({ ...f, teamPlayer2: player2 }));
-                  }
-                }}
-                className="h-11 rounded-lg border border-brand-gray px-3"
-              >
-                <option value="">Select Player 2</option>
-                {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id) && p.id !== form.teamPlayer1?.id).map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={form.teamPlayer2?.id || ''}
+                  onChange={(e) => {
+                    const player2Id = e.target.value;
+                    if (!player2Id) {
+                      setForm(f => ({ ...f, teamPlayer2: null }));
+                      return;
+                    }
+                    const player2 = players.find(p => p.id === player2Id);
+                    if (player2) {
+                      setForm(f => ({ ...f, teamPlayer2: player2 }));
+                    }
+                  }}
+                  className="h-11 rounded-lg border border-brand-gray px-3 w-full pr-8"
+                >
+                  <option value="">Select Player 2</option>
+                  {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id) && p.id !== form.teamPlayer1?.id).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
+                  ))}
+                </select>
+                {form.teamPlayer2 && (
+                  <button
+                    onClick={() => setForm(f => ({ ...f, teamPlayer2: null }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600 hover:text-red-800 font-bold"
+                    title="Clear selection"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
               <select
                 value={form.teamGender || 'mixed'}
