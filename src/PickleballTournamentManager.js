@@ -1375,7 +1375,8 @@ const PickleballTournamentManager = () => {
   const getPlayersOnCourt = useMemo(() => {
     const playingPlayerIds = new Set();
     courtStates.forEach(court => {
-      if (court.status === 'playing' && court.currentMatch) {
+      // Include players from courts that are playing OR cleaning (still have active match)
+      if ((court.status === 'playing' || court.status === 'cleaning') && court.currentMatch) {
         const match = court.currentMatch;
         if (match.gameFormat === 'singles') {
           if (match.player1) playingPlayerIds.add(match.player1.id);
@@ -1393,7 +1394,8 @@ const PickleballTournamentManager = () => {
   const getTeamsOnCourt = useMemo(() => {
     const playingTeamIds = new Set();
     courtStates.forEach(court => {
-      if (court.status === 'playing' && court.currentMatch) {
+      // Include teams from courts that are playing OR cleaning (still have active match)
+      if ((court.status === 'playing' || court.status === 'cleaning') && court.currentMatch) {
         const match = court.currentMatch;
         if (match.team1Id) playingTeamIds.add(match.team1Id);
         if (match.team2Id) playingTeamIds.add(match.team2Id);
@@ -2614,12 +2616,22 @@ const PickleballTournamentManager = () => {
                             </>
                           )}
                           {court.status === 'cleaning' && (
-                            <Button
-                              className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
-                              onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
-                            >
-                              Mark Ready
-                            </Button>
+                            <>
+                              <Button
+                                className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
+                                onClick={() => {
+                                  completeCourtMatch(court.courtNumber);
+                                }}
+                              >
+                                Complete Match
+                              </Button>
+                              <Button
+                                className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
+                                onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
+                              >
+                                Mark Ready
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
