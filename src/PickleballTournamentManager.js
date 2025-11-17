@@ -802,65 +802,97 @@ const generateTeamedDoublesRound = (teams, courts, teamStats, currentRoundIndex,
     }
   });
 
-  const maxTeamsPerRound = courts * 2; // Each court has 2 teams
-  const teamsThisRound = selectTeamsForRound(teams, teamStats, maxTeamsPerRound, currentRoundIndex);
+  // Separate teams by gender type
+  const maleTeams = teams.filter(t => t.gender === 'male_male');
+  const femaleTeams = teams.filter(t => t.gender === 'female_female');
+  const mixedTeams = teams.filter(t => t.gender === 'mixed');
 
-  console.log(`Playing: ${teamsThisRound.map(t => `${t.player1.name}/${t.player2.name}`).join(', ')}`);
-  console.log(`Sitting: ${teams.filter(t => !teamsThisRound.includes(t)).map(t => `${t.player1.name}/${t.player2.name}`).join(', ')}`);
+  console.log(`Male teams: ${maleTeams.length}, Female teams: ${femaleTeams.length}, Mixed teams: ${mixedTeams.length}`);
 
-  // Create matches
   const matches = [];
   const usedTeams = new Set();
+  let courtIdx = 0;
 
-  for (let courtIdx = 0; courtIdx < courts; courtIdx++) {
-    const remaining = teamsThisRound.filter(t => !usedTeams.has(t.id));
-    if (remaining.length < 2) break;
+  // Function to create matches for a gender group
+  const createMatchesForGender = (genderTeams, genderLabel) => {
+    if (genderTeams.length < 2) {
+      console.log(`Not enough ${genderLabel} teams (need 2, have ${genderTeams.length})`);
+      return;
+    }
 
-    // Find best matchup by rating similarity
-    let bestMatch = null;
-    let smallestDiff = Infinity;
+    // Determine how many teams can play based on available courts
+    const availableCourts = courts - courtIdx;
+    const maxTeamsForGender = Math.min(genderTeams.length, availableCourts * 2);
 
-    for (let i = 0; i < remaining.length - 1; i++) {
-      for (let j = i + 1; j < remaining.length; j++) {
-        const diff = Math.abs(remaining[i].avgRating - remaining[j].avgRating);
-        // Prefer teams that haven't played each other
-        const playedBefore = teamStats[remaining[i].id].opponents.get(remaining[j].id) || 0;
-        const adjustedDiff = diff + (playedBefore * 2); // Penalty for repeat matchups
+    // Select teams based on fairness
+    const selectedTeams = selectTeamsForRound(genderTeams, teamStats, maxTeamsForGender, currentRoundIndex);
 
-        if (adjustedDiff < smallestDiff) {
-          smallestDiff = adjustedDiff;
-          bestMatch = [remaining[i], remaining[j]];
+    console.log(`${genderLabel} - Playing: ${selectedTeams.map(t => `${t.player1.name}/${t.player2.name}`).join(', ')}`);
+
+    // Create matches within this gender group
+    const remainingTeams = [...selectedTeams];
+
+    while (remainingTeams.length >= 2 && courtIdx < courts) {
+      // Find best matchup by rating similarity
+      let bestMatch = null;
+      let smallestDiff = Infinity;
+
+      for (let i = 0; i < remainingTeams.length - 1; i++) {
+        for (let j = i + 1; j < remainingTeams.length; j++) {
+          const diff = Math.abs(remainingTeams[i].avgRating - remainingTeams[j].avgRating);
+          // Prefer teams that haven't played each other
+          const playedBefore = teamStats[remainingTeams[i].id].opponents.get(remainingTeams[j].id) || 0;
+          const adjustedDiff = diff + (playedBefore * 2); // Penalty for repeat matchups
+
+          if (adjustedDiff < smallestDiff) {
+            smallestDiff = adjustedDiff;
+            bestMatch = [remainingTeams[i], remainingTeams[j]];
+          }
         }
       }
-    }
 
-    if (bestMatch) {
-      usedTeams.add(bestMatch[0].id);
-      usedTeams.add(bestMatch[1].id);
+      if (bestMatch) {
+        usedTeams.add(bestMatch[0].id);
+        usedTeams.add(bestMatch[1].id);
 
-      matches.push({
-        id: uid(),
-        court: courtIdx + 1,
-        team1: [bestMatch[0].player1, bestMatch[0].player2],
-        team2: [bestMatch[1].player1, bestMatch[1].player2],
-        team1Id: bestMatch[0].id,
-        team2Id: bestMatch[1].id,
-        diff: Math.abs(bestMatch[0].avgRating - bestMatch[1].avgRating),
-        score1: '',
-        score2: '',
-        game1Score1: '',
-        game1Score2: '',
-        game2Score1: '',
-        game2Score2: '',
-        game3Score1: '',
-        game3Score2: '',
-        status: 'pending',
-        winner: null,
-        gameFormat: 'teamed_doubles',
-        matchFormat: matchFormat
-      });
+        matches.push({
+          id: uid(),
+          court: courtIdx + 1,
+          team1: [bestMatch[0].player1, bestMatch[0].player2],
+          team2: [bestMatch[1].player1, bestMatch[1].player2],
+          team1Id: bestMatch[0].id,
+          team2Id: bestMatch[1].id,
+          teamGender: bestMatch[0].gender, // Track gender type in match
+          diff: Math.abs(bestMatch[0].avgRating - bestMatch[1].avgRating),
+          score1: '',
+          score2: '',
+          game1Score1: '',
+          game1Score2: '',
+          game2Score1: '',
+          game2Score2: '',
+          game3Score1: '',
+          game3Score2: '',
+          status: 'pending',
+          winner: null,
+          gameFormat: 'teamed_doubles',
+          matchFormat: matchFormat
+        });
+
+        // Remove used teams from remaining
+        remainingTeams.splice(remainingTeams.indexOf(bestMatch[0]), 1);
+        remainingTeams.splice(remainingTeams.indexOf(bestMatch[1]), 1);
+
+        courtIdx++;
+      } else {
+        break; // No more valid matches
+      }
     }
-  }
+  };
+
+  // Create matches for each gender group
+  createMatchesForGender(maleTeams, 'Male/Male');
+  createMatchesForGender(femaleTeams, 'Female/Female');
+  createMatchesForGender(mixedTeams, 'Mixed');
 
   updateTeamStatsForRound(teamStats, teams, matches, currentRoundIndex);
 
@@ -2120,8 +2152,18 @@ const PickleballTournamentManager = () => {
                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {round.map((m, i) => (
                     <Card key={m.id} className="relative bg-brand-white">
-                      <div className="absolute right-3 top-3 flex items-center gap-2 text-[11px] sm:text-xs text-brand-primary/60">
+                      <div className="absolute right-3 top-3 flex items-center gap-2 text-[11px] sm:text-xs text-brand-primary/60 flex-wrap justify-end">
                         <span>Diff {m.diff?.toFixed?.(2) ?? '--'}</span>
+                        {m.teamGender && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                            m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
+                            m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                            'bg-purple-100 text-purple-700'
+                          }`}>
+                            {m.teamGender === 'male_male' ? 'M/M' :
+                             m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
+                          </span>
+                        )}
                         {m.courtLevel && (
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                             m.courtLevel === 'KING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
