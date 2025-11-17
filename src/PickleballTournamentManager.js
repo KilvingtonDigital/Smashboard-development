@@ -1380,11 +1380,11 @@ const PickleballTournamentManager = () => {
               <table className="w-full text-sm">
                 <thead className="bg-brand-white">
                   <tr className="text-left">
-                    <th className="p-2">Present</th>
+                    <th className="p-2 w-12">✓</th>
                     <th className="p-2">Name</th>
-                    <th className="p-2">DUPR</th>
-                    <th className="p-2">Skill Level</th>
-                    <th className="p-2 w-24"></th>
+                    <th className="p-2 w-20">DUPR</th>
+                    <th className="p-2 hidden sm:table-cell">Skill Level</th>
+                    <th className="p-2 w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1392,26 +1392,26 @@ const PickleballTournamentManager = () => {
                     <tr key={p.id} className="border-t border-brand-gray/60">
                       <td className="p-2"><input type="checkbox" checked={!!p.present} onChange={() => togglePresent(p.id)} /></td>
                       <td className="p-2">
-                        <input value={p.name} onChange={(e) => updatePlayerField(p.id, 'name', e.target.value)} className="w-full rounded border border-brand-gray px-2 py-1" />
+                        <input value={p.name} onChange={(e) => updatePlayerField(p.id, 'name', e.target.value)} className="w-full min-w-[120px] rounded border border-brand-gray px-2 py-1" />
                       </td>
                       <td className="p-2">
-                        <input 
-                          type="number" 
-                          step="0.1" 
-                          min="2.0" 
-                          max="5.5" 
-                          value={p.rating} 
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="2.0"
+                          max="5.5"
+                          value={p.rating}
                           onChange={(e) => updatePlayerField(p.id, 'rating', Number(e.target.value))}
-                          className="w-24 rounded border border-brand-gray px-2 py-1" 
+                          className="w-16 rounded border border-brand-gray px-2 py-1"
                         />
                       </td>
-                      <td className="p-2">
+                      <td className="p-2 hidden sm:table-cell">
                         <span className={`text-xs px-2 py-1 rounded ${getPlayerSkillLevel(p.rating).color}`}>
                           {getPlayerSkillLevel(p.rating).label}
                         </span>
                       </td>
                       <td className="p-2 text-right">
-                        <button onClick={() => removePlayer(p.id)} className="text-red-600 hover:underline">Remove</button>
+                        <button onClick={() => removePlayer(p.id)} className="text-red-600 hover:underline text-xs sm:text-sm">Remove</button>
                       </td>
                     </tr>
                   ))}
@@ -1558,16 +1558,22 @@ const PickleballTournamentManager = () => {
 
                       <div className="mt-1">
                         <div className="font-semibold text-brand-primary text-sm">Team 1</div>
-                        <div className="text-brand-primary/90 text-sm">
-                          {m.team1 ? `${m.team1[0].name} (${m.team1[0].rating}) · ${m.team1[1].name} (${m.team1[1].rating})` : 'TBD'}
-                        </div>
+                        {m.team1 ? (
+                          <div className="text-brand-primary/90">
+                            <div className="text-sm sm:text-base font-medium">{m.team1[0].name} <span className="text-xs text-brand-primary/60">({m.team1[0].rating})</span></div>
+                            <div className="text-sm sm:text-base font-medium">{m.team1[1].name} <span className="text-xs text-brand-primary/60">({m.team1[1].rating})</span></div>
+                          </div>
+                        ) : <div className="text-sm">TBD</div>}
                       </div>
 
                       <div className="mt-2">
                         <div className="font-semibold text-brand-primary text-sm">Team 2</div>
-                        <div className="text-brand-primary/90 text-sm">
-                          {m.team2 ? `${m.team2[0].name} (${m.team2[0].rating}) · ${m.team2[1].name} (${m.team2[1].rating})` : 'TBD'}
-                        </div>
+                        {m.team2 ? (
+                          <div className="text-brand-primary/90">
+                            <div className="text-sm sm:text-base font-medium">{m.team2[0].name} <span className="text-xs text-brand-primary/60">({m.team2[0].rating})</span></div>
+                            <div className="text-sm sm:text-base font-medium">{m.team2[1].name} <span className="text-xs text-brand-primary/60">({m.team2[1].rating})</span></div>
+                          </div>
+                        ) : <div className="text-sm">TBD</div>}
                       </div>
 
                       <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
