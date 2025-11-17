@@ -32,12 +32,26 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
     r.forEach((m) => {
       const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
       const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
+
+      // Handle both singles (player1/player2) and doubles (team1/team2) formats
+      let team1Data, team2Data;
+      if (m.gameFormat === 'singles') {
+        // Singles: create single-player arrays for consistency
+        team1Data = m.player1 ? [{ id: m.player1.id, name: m.player1.name, rating: m.player1.rating }] : [];
+        team2Data = m.player2 ? [{ id: m.player2.id, name: m.player2.name, rating: m.player2.rating }] : [];
+      } else {
+        // Doubles/Teamed: use team arrays
+        team1Data = m.team1?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })) || [];
+        team2Data = m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })) || [];
+      }
+
       matches.push({
         round: rIdx + 1,
         court: m.court,
         courtLevel: m.courtLevel || null,
-        team1: m.team1?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-        team2: m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
+        gameFormat: m.gameFormat || 'doubles',
+        team1: team1Data,
+        team2: team2Data,
         score1: s1,
         score2: s2,
         // Include individual game scores for best of 3
@@ -66,7 +80,7 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
 /* ---- CSV + download ---- */
 const toCSV = (results) => {
   const header = [
-    'round','court','court_level',
+    'round','court','court_level','game_format',
     't1_p1','t1_p1_rating','t1_p2','t1_p2_rating',
     't2_p1','t2_p1_rating','t2_p2','t2_p2_rating',
     'match_format','games_won_t1','games_won_t2',
@@ -75,7 +89,7 @@ const toCSV = (results) => {
   ];
   const rows = results.matches.map((m) =>
     [
-      m.round, m.court, m.courtLevel || '',
+      m.round, m.court, m.courtLevel || '', m.gameFormat,
       m.team1?.[0]?.name || '', m.team1?.[0]?.rating || '',
       m.team1?.[1]?.name || '', m.team1?.[1]?.rating || '',
       m.team2?.[0]?.name || '', m.team2?.[0]?.rating || '',
