@@ -3132,14 +3132,29 @@ const PickleballTournamentManager = () => {
               <Button
                 className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
                 onClick={() => {
-                  if (!exportedThisSession && window.confirm('Clear all data? This cannot be undone.')) {
+                  // If they haven't exported, warn them strongly
+                  // If they have exported, still confirm but with a gentler message
+                  const confirmMessage = !exportedThisSession
+                    ? 'You have not exported your data! Clear all data anyway? This cannot be undone.'
+                    : 'Clear all data? This cannot be undone.';
+
+                  if (window.confirm(confirmMessage)) {
                     setPlayers([]);
+                    setTeams([]);
                     setRounds([]);
                     setPlayerStats({});
+                    setTeamStats({});
                     setKotStats({});
                     setCurrentRound(0);
                     setExportedThisSession(false);
                     setLocked(false);
+                    // Reset court states to initial ready state
+                    const resetCourts = Array.from({ length: courts }, (_, i) => ({
+                      courtNumber: i + 1,
+                      status: 'ready',
+                      currentMatch: null
+                    }));
+                    setCourtStates(resetCourts);
                     localStorage.removeItem('pb_session');
                     localStorage.removeItem('pb_roster');
                     setEndOpen(false);
