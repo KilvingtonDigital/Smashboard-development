@@ -1752,15 +1752,8 @@ const PickleballTournamentManager = () => {
             lastPlayedRound: currentRound
           };
         }
-        // Update sitting-out stats for those not playing
-        availablePlayers.forEach(p => {
-          if (updated[p.id]) {
-            updated[p.id] = {
-              ...updated[p.id],
-              roundsSatOut: updated[p.id].roundsSatOut + 1
-            };
-          }
-        });
+        // Note: roundsSatOut is not tracked in continuous play mode
+        // It only makes sense for traditional round-based generation
         return updated;
       });
     } else if (match.gameFormat === 'teamed_doubles') {
@@ -1780,15 +1773,8 @@ const PickleballTournamentManager = () => {
             lastPlayedRound: currentRound
           };
         }
-        // Update sitting-out stats for those not playing
-        availableTeams.forEach(t => {
-          if (updated[t.id]) {
-            updated[t.id] = {
-              ...updated[t.id],
-              roundsSatOut: updated[t.id].roundsSatOut + 1
-            };
-          }
-        });
+        // Note: roundsSatOut is not tracked in continuous play mode
+        // It only makes sense for traditional round-based generation
         return updated;
       });
     } else {
@@ -1813,15 +1799,8 @@ const PickleballTournamentManager = () => {
             };
           }
         });
-        // Update sitting-out stats for those not playing
-        availablePlayers.forEach(p => {
-          if (updated[p.id]) {
-            updated[p.id] = {
-              ...updated[p.id],
-              roundsSatOut: updated[p.id].roundsSatOut + 1
-            };
-          }
-        });
+        // Note: roundsSatOut is not tracked in continuous play mode
+        // It only makes sense for traditional round-based generation
         return updated;
       });
     }
