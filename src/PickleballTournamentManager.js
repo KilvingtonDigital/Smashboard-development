@@ -157,20 +157,43 @@ const separatePlayersBySkill = (players, minPlayersPerLevel = 4) => {
   const bumpedPlayers = [];
   const levelKeys = Object.keys(SKILL_LEVELS);
 
+  // First pass: Try bumping UP to next level
   for (let i = 0; i < levelKeys.length; i++) {
     const levelKey = levelKeys[i];
     const playerGroup = skillGroups[levelKey];
-    
+
     if (playerGroup.length > 0 && playerGroup.length < minPlayersPerLevel) {
       let targetLevelIndex = i + 1;
       while (targetLevelIndex < levelKeys.length && skillGroups[levelKeys[targetLevelIndex]].length === 0) {
         targetLevelIndex++;
       }
-      
+
       if (targetLevelIndex < levelKeys.length) {
         const targetLevel = levelKeys[targetLevelIndex];
         console.log(`BUMPING UP: ${playerGroup.map(p => p.name).join(', ')} from ${SKILL_LEVELS[levelKey].label} to ${SKILL_LEVELS[targetLevel].label}`);
-        
+
+        skillGroups[targetLevel].push(...playerGroup);
+        bumpedPlayers.push(...playerGroup.map(p => ({ ...p, originalLevel: levelKey, bumpedLevel: targetLevel })));
+        skillGroups[levelKey] = [];
+      }
+    }
+  }
+
+  // Second pass: Try bumping DOWN to previous level (for high-rated isolated players)
+  for (let i = levelKeys.length - 1; i >= 0; i--) {
+    const levelKey = levelKeys[i];
+    const playerGroup = skillGroups[levelKey];
+
+    if (playerGroup.length > 0 && playerGroup.length < minPlayersPerLevel) {
+      let targetLevelIndex = i - 1;
+      while (targetLevelIndex >= 0 && skillGroups[levelKeys[targetLevelIndex]].length === 0) {
+        targetLevelIndex--;
+      }
+
+      if (targetLevelIndex >= 0) {
+        const targetLevel = levelKeys[targetLevelIndex];
+        console.log(`BUMPING DOWN: ${playerGroup.map(p => p.name).join(', ')} from ${SKILL_LEVELS[levelKey].label} to ${SKILL_LEVELS[targetLevel].label}`);
+
         skillGroups[targetLevel].push(...playerGroup);
         bumpedPlayers.push(...playerGroup.map(p => ({ ...p, originalLevel: levelKey, bumpedLevel: targetLevel })));
         skillGroups[levelKey] = [];
@@ -179,6 +202,8 @@ const separatePlayersBySkill = (players, minPlayersPerLevel = 4) => {
   }
 
   const finalGroups = [];
+  const orphanedPlayers = []; // Track players not in any group
+
   Object.entries(skillGroups).forEach(([levelKey, playerGroup]) => {
     if (playerGroup.length >= minPlayersPerLevel) {
       finalGroups.push({
@@ -189,12 +214,54 @@ const separatePlayersBySkill = (players, minPlayersPerLevel = 4) => {
         minRating: Math.min(...playerGroup.map(p => p.rating)),
         maxRating: Math.max(...playerGroup.map(p => p.rating))
       });
+    } else if (playerGroup.length > 0) {
+      // Collect orphaned players who couldn't be grouped
+      orphanedPlayers.push(...playerGroup);
     }
   });
 
+  // If there are orphaned players, add them to the closest skill group OR create a mixed group
+  if (orphanedPlayers.length > 0) {
+    console.warn(`⚠️ ${orphanedPlayers.length} orphaned players: ${orphanedPlayers.map(p => p.name).join(', ')}`);
+
+    if (finalGroups.length > 0) {
+      // Add to the closest skill group (by rating)
+      orphanedPlayers.forEach(orphan => {
+        let closestGroup = finalGroups[0];
+        let smallestRatingDiff = Math.abs(orphan.rating - (closestGroup.minRating + closestGroup.maxRating) / 2);
+
+        finalGroups.forEach(group => {
+          const groupAvg = (group.minRating + group.maxRating) / 2;
+          const diff = Math.abs(orphan.rating - groupAvg);
+          if (diff < smallestRatingDiff) {
+            smallestRatingDiff = diff;
+            closestGroup = group;
+          }
+        });
+
+        console.log(`Adding ${orphan.name} (${orphan.rating}) to ${closestGroup.label} group`);
+        closestGroup.players.push(orphan);
+        closestGroup.minRating = Math.min(closestGroup.minRating, orphan.rating);
+        closestGroup.maxRating = Math.max(closestGroup.maxRating, orphan.rating);
+        bumpedPlayers.push({ ...orphan, originalLevel: getPlayerSkillLevel(orphan.rating).key, bumpedLevel: closestGroup.level });
+      });
+    } else {
+      // No groups exist - create a mixed group with all players
+      console.log(`Creating mixed group with all ${players.length} players`);
+      finalGroups.push({
+        level: 'MIXED',
+        label: 'Mixed',
+        color: 'bg-gray-100 text-gray-700',
+        players: [...players],
+        minRating: Math.min(...players.map(p => p.rating)),
+        maxRating: Math.max(...players.map(p => p.rating))
+      });
+    }
+  }
+
   console.log(`\n=== FINAL SKILL GROUPS (${finalGroups.length} groups) ===`);
   finalGroups.forEach((group, idx) => {
-    console.log(`Group ${idx + 1} - ${group.label}: ${group.players.length} players (${group.minRating}-${group.maxRating})`);
+    console.log(`Group ${idx + 1} - ${group.label}: ${group.players.length} players (${group.minRating.toFixed(1)}-${group.maxRating.toFixed(1)})`);
   });
 
   return { groups: finalGroups, bumpedPlayers };
@@ -236,22 +303,32 @@ const initializePlayerStats = (playerStats, presentPlayers) => {
 
 const validateFairness = (playerStats, presentPlayers, currentRound) => {
   if (currentRound === 0) return true;
-  
+
   const playStats = presentPlayers.map(p => {
     const stats = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0 };
     return {
       name: p.name,
+      rating: p.rating,
       played: stats.roundsPlayed,
       satOut: stats.roundsSatOut
     };
   });
-  
+
+  // Check for players who haven't played at all
+  const notPlayed = playStats.filter(s => s.played === 0);
+  if (notPlayed.length > 0 && currentRound >= 2) {
+    console.error(`🚨 CRITICAL FAIRNESS ISSUE: ${notPlayed.length} player(s) have NOT played ANY games after ${currentRound + 1} rounds!`);
+    notPlayed.forEach(p => {
+      console.error(`   ❌ ${p.name} (${p.rating}) - 0 games played, ${p.satOut} sat out`);
+    });
+  }
+
   const maxSatOut = Math.max(...playStats.map(s => s.satOut));
   const minSatOut = Math.min(...playStats.map(s => s.satOut));
   const difference = maxSatOut - minSatOut;
-  
-  if (difference > 1) {
-    console.warn('⚠️ FAIRNESS ALERT: Some players have sat out significantly more');
+
+  if (difference > 2) {
+    console.warn('⚠️ FAIRNESS ALERT: Significant sit-out imbalance');
     console.log('Max sat out:', maxSatOut, 'Min sat out:', minSatOut);
     console.log('Players sitting out most:', playStats.filter(s => s.satOut === maxSatOut).map(s => s.name));
   }
