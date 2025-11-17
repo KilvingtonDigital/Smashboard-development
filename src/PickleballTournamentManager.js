@@ -2083,7 +2083,7 @@ const PickleballTournamentManager = () => {
 
       // Best of 3 format
       if (m.matchFormat === 'best_of_3') {
-        // Only auto-fill scores if they haven't been entered yet
+        // Check if any scores have been entered
         const hasScores = (m.game1Score1 !== '' && m.game1Score1 != null) ||
                          (m.game1Score2 !== '' && m.game1Score2 != null) ||
                          (m.game2Score1 !== '' && m.game2Score1 != null) ||
@@ -2108,8 +2108,54 @@ const PickleballTournamentManager = () => {
             m.game3Score1 = '';
             m.game3Score2 = '';
           }
+        } else {
+          // Scores were manually entered - validate and calculate winner from scores
+          const g1s1 = Number(m.game1Score1) || 0;
+          const g1s2 = Number(m.game1Score2) || 0;
+          const g2s1 = Number(m.game2Score1) || 0;
+          const g2s2 = Number(m.game2Score2) || 0;
+          const g3s1 = Number(m.game3Score1) || 0;
+          const g3s2 = Number(m.game3Score2) || 0;
+
+          // Calculate games won by each team
+          let team1Games = 0;
+          let team2Games = 0;
+
+          if (g1s1 > g1s2) team1Games++;
+          else if (g1s2 > g1s1) team2Games++;
+
+          if (g2s1 > g2s2) team1Games++;
+          else if (g2s2 > g2s1) team2Games++;
+
+          // Check if Game 3 is needed
+          if (team1Games === 2 || team2Games === 2) {
+            // 2-0 win - Game 3 should NOT be played, clear it
+            m.game3Score1 = '';
+            m.game3Score2 = '';
+          } else if (team1Games === 1 && team2Games === 1) {
+            // 1-1 split - Game 3 IS required
+            if ((m.game3Score1 === '' || m.game3Score1 == null) &&
+                (m.game3Score2 === '' || m.game3Score2 == null)) {
+              alert('Game 3 is required when the match is tied 1-1. Please enter Game 3 scores.');
+              return prev;
+            }
+            // Count Game 3 winner
+            if (g3s1 > g3s2) team1Games++;
+            else if (g3s2 > g3s1) team2Games++;
+          }
+
+          // Determine winner from game scores
+          if (team1Games > team2Games) {
+            setWinner(m, 1);
+          } else if (team2Games > team1Games) {
+            setWinner(m, 2);
+          } else {
+            alert('Cannot determine winner from scores. Please check the entered scores.');
+            return prev;
+          }
+          return newRounds;
         }
-        // If scores exist, just set the winner without modifying scores
+
         setWinner(m, side);
         return newRounds;
       }
