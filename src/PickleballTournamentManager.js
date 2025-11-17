@@ -1375,8 +1375,7 @@ const PickleballTournamentManager = () => {
   const getPlayersOnCourt = useMemo(() => {
     const playingPlayerIds = new Set();
     courtStates.forEach(court => {
-      // Include players from courts that are playing OR cleaning (still have active match)
-      if ((court.status === 'playing' || court.status === 'cleaning') && court.currentMatch) {
+      if (court.status === 'playing' && court.currentMatch) {
         const match = court.currentMatch;
         if (match.gameFormat === 'singles') {
           if (match.player1) playingPlayerIds.add(match.player1.id);
@@ -1394,8 +1393,7 @@ const PickleballTournamentManager = () => {
   const getTeamsOnCourt = useMemo(() => {
     const playingTeamIds = new Set();
     courtStates.forEach(court => {
-      // Include teams from courts that are playing OR cleaning (still have active match)
-      if ((court.status === 'playing' || court.status === 'cleaning') && court.currentMatch) {
+      if (court.status === 'playing' && court.currentMatch) {
         const match = court.currentMatch;
         if (match.team1Id) playingTeamIds.add(match.team1Id);
         if (match.team2Id) playingTeamIds.add(match.team2Id);
@@ -2609,29 +2607,24 @@ const PickleballTournamentManager = () => {
                               </Button>
                               <Button
                                 className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
-                                onClick={() => updateCourtStatus(court.courtNumber, 'cleaning')}
+                                onClick={() => {
+                                  // Complete the match first (frees players and adds match to rounds for scoring)
+                                  completeCourtMatch(court.courtNumber);
+                                  // Then set court to cleaning (keeps it unavailable)
+                                  updateCourtStatus(court.courtNumber, 'cleaning');
+                                }}
                               >
                                 Set Cleaning
                               </Button>
                             </>
                           )}
                           {court.status === 'cleaning' && (
-                            <>
-                              <Button
-                                className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
-                                onClick={() => {
-                                  completeCourtMatch(court.courtNumber);
-                                }}
-                              >
-                                Complete Match
-                              </Button>
-                              <Button
-                                className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
-                                onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
-                              >
-                                Mark Ready
-                              </Button>
-                            </>
+                            <Button
+                              className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
+                              onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
+                            >
+                              Mark Ready
+                            </Button>
                           )}
                         </div>
                       </div>
