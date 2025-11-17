@@ -1562,12 +1562,16 @@ const PickleballTournamentManager = () => {
     ));
 
     // Initialize player stats if needed
-    if (!playerStats[player1.id]) {
-      playerStats[player1.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
-    }
-    if (!playerStats[player2.id]) {
-      playerStats[player2.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
-    }
+    setPlayerStats(prev => {
+      const updated = { ...prev };
+      if (!updated[player1.id]) {
+        updated[player1.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+      }
+      if (!updated[player2.id]) {
+        updated[player2.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+      }
+      return updated;
+    });
   };
 
   const assignDoublesMatchToCourt = (courtNumber) => {
@@ -1613,10 +1617,14 @@ const PickleballTournamentManager = () => {
     ));
 
     // Initialize player stats if needed
-    [...teamSplit.team1, ...teamSplit.team2].forEach(p => {
-      if (!playerStats[p.id]) {
-        playerStats[p.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
-      }
+    setPlayerStats(prev => {
+      const updated = { ...prev };
+      [...teamSplit.team1, ...teamSplit.team2].forEach(p => {
+        if (!updated[p.id]) {
+          updated[p.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+        }
+      });
+      return updated;
     });
   };
 
@@ -1695,12 +1703,16 @@ const PickleballTournamentManager = () => {
     ));
 
     // Initialize team stats if needed
-    if (!teamStats[team1.id]) {
-      teamStats[team1.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
-    }
-    if (!teamStats[team2.id]) {
-      teamStats[team2.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
-    }
+    setTeamStats(prev => {
+      const updated = { ...prev };
+      if (!updated[team1.id]) {
+        updated[team1.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+      }
+      if (!updated[team2.id]) {
+        updated[team2.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+      }
+      return updated;
+    });
   };
 
   const completeCourtMatch = (courtNumber) => {
@@ -1724,51 +1736,93 @@ const PickleballTournamentManager = () => {
 
     // Update player/team stats
     if (match.gameFormat === 'singles') {
-      if (playerStats[match.player1.id]) {
-        playerStats[match.player1.id].roundsPlayed++;
-        playerStats[match.player1.id].lastPlayedRound = currentRound;
-      }
-      if (playerStats[match.player2.id]) {
-        playerStats[match.player2.id].roundsPlayed++;
-        playerStats[match.player2.id].lastPlayedRound = currentRound;
-      }
+      setPlayerStats(prev => {
+        const updated = { ...prev };
+        if (updated[match.player1.id]) {
+          updated[match.player1.id] = {
+            ...updated[match.player1.id],
+            roundsPlayed: updated[match.player1.id].roundsPlayed + 1,
+            lastPlayedRound: currentRound
+          };
+        }
+        if (updated[match.player2.id]) {
+          updated[match.player2.id] = {
+            ...updated[match.player2.id],
+            roundsPlayed: updated[match.player2.id].roundsPlayed + 1,
+            lastPlayedRound: currentRound
+          };
+        }
+        // Update sitting-out stats for those not playing
+        availablePlayers.forEach(p => {
+          if (updated[p.id]) {
+            updated[p.id] = {
+              ...updated[p.id],
+              roundsSatOut: updated[p.id].roundsSatOut + 1
+            };
+          }
+        });
+        return updated;
+      });
     } else if (match.gameFormat === 'teamed_doubles') {
-      if (teamStats[match.team1Id]) {
-        teamStats[match.team1Id].roundsPlayed++;
-        teamStats[match.team1Id].lastPlayedRound = currentRound;
-      }
-      if (teamStats[match.team2Id]) {
-        teamStats[match.team2Id].roundsPlayed++;
-        teamStats[match.team2Id].lastPlayedRound = currentRound;
-      }
+      setTeamStats(prev => {
+        const updated = { ...prev };
+        if (updated[match.team1Id]) {
+          updated[match.team1Id] = {
+            ...updated[match.team1Id],
+            roundsPlayed: updated[match.team1Id].roundsPlayed + 1,
+            lastPlayedRound: currentRound
+          };
+        }
+        if (updated[match.team2Id]) {
+          updated[match.team2Id] = {
+            ...updated[match.team2Id],
+            roundsPlayed: updated[match.team2Id].roundsPlayed + 1,
+            lastPlayedRound: currentRound
+          };
+        }
+        // Update sitting-out stats for those not playing
+        availableTeams.forEach(t => {
+          if (updated[t.id]) {
+            updated[t.id] = {
+              ...updated[t.id],
+              roundsSatOut: updated[t.id].roundsSatOut + 1
+            };
+          }
+        });
+        return updated;
+      });
     } else {
       // Regular doubles
-      match.team1?.forEach(p => {
-        if (playerStats[p.id]) {
-          playerStats[p.id].roundsPlayed++;
-          playerStats[p.id].lastPlayedRound = currentRound;
-        }
-      });
-      match.team2?.forEach(p => {
-        if (playerStats[p.id]) {
-          playerStats[p.id].roundsPlayed++;
-          playerStats[p.id].lastPlayedRound = currentRound;
-        }
-      });
-    }
-
-    // Update sitting-out stats for those not playing
-    if (match.gameFormat === 'singles' || match.gameFormat === 'doubles') {
-      availablePlayers.forEach(p => {
-        if (playerStats[p.id]) {
-          playerStats[p.id].roundsSatOut++;
-        }
-      });
-    } else if (match.gameFormat === 'teamed_doubles') {
-      availableTeams.forEach(t => {
-        if (teamStats[t.id]) {
-          teamStats[t.id].roundsSatOut++;
-        }
+      setPlayerStats(prev => {
+        const updated = { ...prev };
+        match.team1?.forEach(p => {
+          if (updated[p.id]) {
+            updated[p.id] = {
+              ...updated[p.id],
+              roundsPlayed: updated[p.id].roundsPlayed + 1,
+              lastPlayedRound: currentRound
+            };
+          }
+        });
+        match.team2?.forEach(p => {
+          if (updated[p.id]) {
+            updated[p.id] = {
+              ...updated[p.id],
+              roundsPlayed: updated[p.id].roundsPlayed + 1,
+              lastPlayedRound: currentRound
+            };
+          }
+        });
+        // Update sitting-out stats for those not playing
+        availablePlayers.forEach(p => {
+          if (updated[p.id]) {
+            updated[p.id] = {
+              ...updated[p.id],
+              roundsSatOut: updated[p.id].roundsSatOut + 1
+            };
+          }
+        });
+        return updated;
       });
     }
 
@@ -1778,9 +1832,6 @@ const PickleballTournamentManager = () => {
         ? { ...c, status: 'ready', currentMatch: null }
         : c
     ));
-
-    setPlayerStats({...playerStats});
-    setTeamStats({...teamStats});
   };
 
   const updateCourtStatus = (courtNumber, status) => {
