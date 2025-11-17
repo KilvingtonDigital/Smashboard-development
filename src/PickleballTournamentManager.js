@@ -336,7 +336,7 @@ const validateFairness = (playerStats, presentPlayers, currentRound) => {
   return difference <= 1;
 };
 
-const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRoundIndex, separateBySkill = true) => {
+const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRoundIndex, separateBySkill = true, matchFormat = 'single_match') => {
   console.log(`\n=== GENERATING ROUND ROBIN ROUND ${currentRoundIndex + 1} ===`);
   console.log(`Present players: ${presentPlayers.length}`);
   
@@ -492,9 +492,17 @@ const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startin
       diff: Math.abs(avg(teamSplit.team1) - avg(teamSplit.team2)),
       score1: '',
       score2: '',
+      game1Score1: '',
+      game1Score2: '',
+      game2Score1: '',
+      game2Score2: '',
+      game3Score1: '',
+      game3Score2: '',
       status: 'pending',
       winner: null,
-      skillLevel: groupType
+      skillLevel: groupType,
+      gameFormat: 'doubles',
+      matchFormat: matchFormat
     });
   }
   
@@ -673,6 +681,254 @@ const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundId
   });
 };
 
+/* =====================  SINGLES ROUND ROBIN SCHEDULING  ===================== */
+
+const generateSinglesRound = (presentPlayers, courts, playerStats, currentRoundIndex, matchFormat = 'single_match') => {
+  console.log(`\n=== GENERATING SINGLES ROUND ${currentRoundIndex + 1} ===`);
+  console.log(`Present players: ${presentPlayers.length}`);
+
+  const updatedStats = initializePlayerStats(playerStats, presentPlayers);
+  const maxPlayersPerRound = courts * 2; // Each court has 2 singles players
+
+  // Select players based on fairness (who sat out most)
+  const playersThisRound = selectPlayersForRound(presentPlayers, updatedStats, maxPlayersPerRound, currentRoundIndex);
+
+  console.log(`Playing: ${playersThisRound.map(p => p.name).join(', ')}`);
+  console.log(`Sitting: ${presentPlayers.filter(p => !playersThisRound.includes(p)).map(p => p.name).join(', ')}`);
+
+  // Create singles matches
+  const matches = [];
+  const usedPlayers = new Set();
+
+  for (let courtIdx = 0; courtIdx < courts; courtIdx++) {
+    const remaining = playersThisRound.filter(p => !usedPlayers.has(p.id));
+    if (remaining.length < 2) break;
+
+    // Find best pair by rating similarity
+    let bestPair = null;
+    let smallestDiff = Infinity;
+
+    for (let i = 0; i < remaining.length - 1; i++) {
+      for (let j = i + 1; j < remaining.length; j++) {
+        const diff = Math.abs(remaining[i].rating - remaining[j].rating);
+        if (diff < smallestDiff) {
+          smallestDiff = diff;
+          bestPair = [remaining[i], remaining[j]];
+        }
+      }
+    }
+
+    if (bestPair) {
+      usedPlayers.add(bestPair[0].id);
+      usedPlayers.add(bestPair[1].id);
+
+      matches.push({
+        id: uid(),
+        court: courtIdx + 1,
+        player1: bestPair[0],
+        player2: bestPair[1],
+        diff: Math.abs(bestPair[0].rating - bestPair[1].rating),
+        score1: '',
+        score2: '',
+        game1Score1: '',
+        game1Score2: '',
+        game2Score1: '',
+        game2Score2: '',
+        game3Score1: '',
+        game3Score2: '',
+        status: 'pending',
+        winner: null,
+        gameFormat: 'singles',
+        matchFormat: matchFormat
+      });
+    }
+  }
+
+  updatePlayerStatsForSinglesRound(updatedStats, presentPlayers, matches, currentRoundIndex);
+  Object.assign(playerStats, updatedStats);
+
+  console.log(`\n=== SINGLES ROUND ${currentRoundIndex + 1} SUMMARY ===`);
+  console.log(`Courts used: ${matches.length}`);
+  console.log(`Players playing: ${matches.length * 2}`);
+  console.log(`Players sitting: ${presentPlayers.length - matches.length * 2}`);
+
+  return matches;
+};
+
+const updatePlayerStatsForSinglesRound = (playerStats, presentPlayers, matches, roundIdx) => {
+  const playingIds = new Set();
+
+  matches.forEach(match => {
+    playingIds.add(match.player1.id);
+    playingIds.add(match.player2.id);
+  });
+
+  presentPlayers.forEach(player => {
+    const stats = playerStats[player.id];
+    if (playingIds.has(player.id)) {
+      stats.roundsPlayed++;
+      stats.lastPlayedRound = roundIdx;
+    } else {
+      stats.roundsSatOut++;
+    }
+  });
+
+  // Track opponents
+  matches.forEach(match => {
+    const { player1, player2 } = match;
+    if (!playerStats[player1.id].opponents) playerStats[player1.id].opponents = new Map();
+    if (!playerStats[player2.id].opponents) playerStats[player2.id].opponents = new Map();
+
+    playerStats[player1.id].opponents.set(player2.id, (playerStats[player1.id].opponents.get(player2.id) || 0) + 1);
+    playerStats[player2.id].opponents.set(player1.id, (playerStats[player2.id].opponents.get(player1.id) || 0) + 1);
+  });
+};
+
+/* =====================  TEAMED DOUBLES ROUND ROBIN SCHEDULING  ===================== */
+
+const generateTeamedDoublesRound = (teams, courts, teamStats, currentRoundIndex, matchFormat = 'single_match') => {
+  console.log(`\n=== GENERATING TEAMED DOUBLES ROUND ${currentRoundIndex + 1} ===`);
+  console.log(`Total teams: ${teams.length}`);
+
+  // Initialize team stats if needed
+  teams.forEach(team => {
+    if (!teamStats[team.id]) {
+      teamStats[team.id] = {
+        roundsPlayed: 0,
+        roundsSatOut: 0,
+        lastPlayedRound: -1,
+        opponents: new Map()
+      };
+    }
+  });
+
+  const maxTeamsPerRound = courts * 2; // Each court has 2 teams
+  const teamsThisRound = selectTeamsForRound(teams, teamStats, maxTeamsPerRound, currentRoundIndex);
+
+  console.log(`Playing: ${teamsThisRound.map(t => `${t.player1.name}/${t.player2.name}`).join(', ')}`);
+  console.log(`Sitting: ${teams.filter(t => !teamsThisRound.includes(t)).map(t => `${t.player1.name}/${t.player2.name}`).join(', ')}`);
+
+  // Create matches
+  const matches = [];
+  const usedTeams = new Set();
+
+  for (let courtIdx = 0; courtIdx < courts; courtIdx++) {
+    const remaining = teamsThisRound.filter(t => !usedTeams.has(t.id));
+    if (remaining.length < 2) break;
+
+    // Find best matchup by rating similarity
+    let bestMatch = null;
+    let smallestDiff = Infinity;
+
+    for (let i = 0; i < remaining.length - 1; i++) {
+      for (let j = i + 1; j < remaining.length; j++) {
+        const diff = Math.abs(remaining[i].avgRating - remaining[j].avgRating);
+        // Prefer teams that haven't played each other
+        const playedBefore = teamStats[remaining[i].id].opponents.get(remaining[j].id) || 0;
+        const adjustedDiff = diff + (playedBefore * 2); // Penalty for repeat matchups
+
+        if (adjustedDiff < smallestDiff) {
+          smallestDiff = adjustedDiff;
+          bestMatch = [remaining[i], remaining[j]];
+        }
+      }
+    }
+
+    if (bestMatch) {
+      usedTeams.add(bestMatch[0].id);
+      usedTeams.add(bestMatch[1].id);
+
+      matches.push({
+        id: uid(),
+        court: courtIdx + 1,
+        team1: [bestMatch[0].player1, bestMatch[0].player2],
+        team2: [bestMatch[1].player1, bestMatch[1].player2],
+        team1Id: bestMatch[0].id,
+        team2Id: bestMatch[1].id,
+        diff: Math.abs(bestMatch[0].avgRating - bestMatch[1].avgRating),
+        score1: '',
+        score2: '',
+        game1Score1: '',
+        game1Score2: '',
+        game2Score1: '',
+        game2Score2: '',
+        game3Score1: '',
+        game3Score2: '',
+        status: 'pending',
+        winner: null,
+        gameFormat: 'teamed_doubles',
+        matchFormat: matchFormat
+      });
+    }
+  }
+
+  updateTeamStatsForRound(teamStats, teams, matches, currentRoundIndex);
+
+  console.log(`\n=== TEAMED DOUBLES ROUND ${currentRoundIndex + 1} SUMMARY ===`);
+  console.log(`Courts used: ${matches.length}`);
+  console.log(`Teams playing: ${matches.length * 2}`);
+  console.log(`Teams sitting: ${teams.length - matches.length * 2}`);
+
+  return matches;
+};
+
+const selectTeamsForRound = (allTeams, teamStats, maxTeams, roundIdx) => {
+  if (allTeams.length <= maxTeams) {
+    return [...allTeams];
+  }
+
+  const teamPriority = allTeams.map(team => {
+    const stats = teamStats[team.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1 };
+    let priority = 0;
+
+    priority += stats.roundsSatOut * 500;
+
+    if (stats.lastPlayedRound >= 0) {
+      priority += (roundIdx - stats.lastPlayedRound) * 200;
+    } else {
+      priority += 1000;
+    }
+
+    const avgRoundsPlayed = roundIdx > 0 ?
+      Object.values(teamStats).reduce((sum, s) => sum + (s.roundsPlayed || 0), 0) / Object.keys(teamStats).length : 0;
+    priority += (avgRoundsPlayed - stats.roundsPlayed) * 100;
+
+    priority += Math.random() * 1;
+
+    return { team, priority, stats };
+  });
+
+  return teamPriority
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, maxTeams)
+    .map(item => item.team);
+};
+
+const updateTeamStatsForRound = (teamStats, allTeams, matches, roundIdx) => {
+  const playingIds = new Set();
+
+  matches.forEach(match => {
+    playingIds.add(match.team1Id);
+    playingIds.add(match.team2Id);
+  });
+
+  allTeams.forEach(team => {
+    const stats = teamStats[team.id];
+    if (playingIds.has(team.id)) {
+      stats.roundsPlayed++;
+      stats.lastPlayedRound = roundIdx;
+    } else {
+      stats.roundsSatOut++;
+    }
+  });
+
+  // Track opponents
+  matches.forEach(match => {
+    teamStats[match.team1Id].opponents.set(match.team2Id, (teamStats[match.team1Id].opponents.get(match.team2Id) || 0) + 1);
+    teamStats[match.team2Id].opponents.set(match.team1Id, (teamStats[match.team2Id].opponents.get(match.team1Id) || 0) + 1);
+  });
+};
+
 /* =====================  KING OF COURT MODE  ===================== */
 
 const initializeKingOfCourtStats = (kotStats, presentPlayers, courts) => {
@@ -823,10 +1079,18 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
       diff: Math.abs(avg(teamSplit.team1) - avg(teamSplit.team2)),
       score1: '',
       score2: '',
+      game1Score1: '',
+      game1Score2: '',
+      game2Score1: '',
+      game2Score2: '',
+      game3Score1: '',
+      game3Score2: '',
       status: 'pending',
       winner: null,
       skillLevel: groupLabel,
-      pointsForWin: courtPoints
+      pointsForWin: courtPoints,
+      gameFormat: 'doubles',
+      matchFormat: 'single_match'
     });
   }
   
@@ -1016,12 +1280,16 @@ const PickleballTournamentManager = () => {
   const [minutesPerRound, setMinutesPerRound] = useState(20);
 
   const [tournamentType, setTournamentType] = useState('round_robin');
+  const [gameFormat, setGameFormat] = useState('doubles'); // doubles, teamed_doubles, singles
+  const [matchFormat, setMatchFormat] = useState('single_match'); // single_match, best_of_3
+  const [teams, setTeams] = useState([]); // For teamed doubles: [{id, player1, player2, gender}]
   const [separateBySkill, setSeparateBySkill] = useState(true);
 
   const [rounds, setRounds] = useState([]);
   const [currentRound, setCurrentRound] = useState(0);
   const [playerStats, setPlayerStats] = useState({});
   const [kotStats, setKotStats] = useState({});
+  const [teamStats, setTeamStats] = useState({}); // For teamed doubles
 
   const [tab, setTab] = useState('setup');
   const [endOpen, setEndOpen] = useState(false);
@@ -1041,12 +1309,12 @@ const PickleballTournamentManager = () => {
 
   useEffect(() => {
     const snapshot = {
-      players, rounds, playerStats, kotStats, currentRound,
-      meta: { courts, sessionMinutes, minutesPerRound, tournamentType, separateBySkill, ts: Date.now() },
+      players, rounds, playerStats, kotStats, teamStats, currentRound, teams,
+      meta: { courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, ts: Date.now() },
       locked
     };
     localStorage.setItem('pb_session', JSON.stringify(snapshot));
-  }, [players, rounds, playerStats, kotStats, currentRound, courts, sessionMinutes, minutesPerRound, tournamentType, separateBySkill, locked]);
+  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1121,18 +1389,28 @@ const PickleballTournamentManager = () => {
   };
 
   const generateNextRound = () => {
-    if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-    
     let newRound;
-    
+
     if (tournamentType === 'round_robin') {
-      newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill);
+      // Check game format
+      if (gameFormat === 'singles') {
+        if (presentPlayers.length < 2) return alert('Need at least 2 present players for singles');
+        newRound = generateSinglesRound(presentPlayers, courts, playerStats, currentRound, matchFormat);
+      } else if (gameFormat === 'teamed_doubles') {
+        if (teams.length < 2) return alert('Need at least 2 teams for teamed doubles');
+        newRound = generateTeamedDoublesRound(teams, courts, teamStats, currentRound, matchFormat);
+      } else {
+        // Regular doubles with random pairing
+        if (presentPlayers.length < 4) return alert('Need at least 4 present players');
+        newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, matchFormat);
+      }
     } else if (tournamentType === 'king_of_court') {
+      if (presentPlayers.length < 4) return alert('Need at least 4 present players');
       newRound = generateKingOfCourtRound(presentPlayers, courts, kotStats, currentRound, rounds, separateBySkill);
     } else {
       return alert('Invalid tournament type');
     }
-    
+
     setRounds(prev => [...prev, newRound]);
     setCurrentRound(prev => prev + 1);
     setLocked(true);
@@ -1141,14 +1419,15 @@ const PickleballTournamentManager = () => {
 
   const clearAllRounds = () => {
     const confirmClear = window.confirm(
-      'Clear all rounds and player statistics? This cannot be undone.'
+      'Clear all rounds and statistics? This cannot be undone.'
     );
     if (!confirmClear) return;
-    
+
     setRounds([]);
     setCurrentRound(0);
     setPlayerStats({});
     setKotStats({});
+    setTeamStats({});
     setLocked(false);
   };
 
@@ -1167,6 +1446,36 @@ const PickleballTournamentManager = () => {
     );
   };
 
+  // Calculate winner for best of 3 format
+  const calculateBestOf3Winner = (m) => {
+    let side1Wins = 0;
+    let side2Wins = 0;
+
+    // Game 1
+    const g1s1 = typeof m.game1Score1 === 'number' ? m.game1Score1 : Number(m.game1Score1) || 0;
+    const g1s2 = typeof m.game1Score2 === 'number' ? m.game1Score2 : Number(m.game1Score2) || 0;
+    if (g1s1 > g1s2) side1Wins++;
+    else if (g1s2 > g1s1) side2Wins++;
+
+    // Game 2
+    const g2s1 = typeof m.game2Score1 === 'number' ? m.game2Score1 : Number(m.game2Score1) || 0;
+    const g2s2 = typeof m.game2Score2 === 'number' ? m.game2Score2 : Number(m.game2Score2) || 0;
+    if (g2s1 > g2s2) side1Wins++;
+    else if (g2s2 > g2s1) side2Wins++;
+
+    // Game 3 (if needed)
+    if (side1Wins < 2 && side2Wins < 2) {
+      const g3s1 = typeof m.game3Score1 === 'number' ? m.game3Score1 : Number(m.game3Score1) || 0;
+      const g3s2 = typeof m.game3Score2 === 'number' ? m.game3Score2 : Number(m.game3Score2) || 0;
+      if (g3s1 > g3s2) side1Wins++;
+      else if (g3s2 > g3s1) side2Wins++;
+    }
+
+    if (side1Wins >= 2) return 1;
+    if (side2Wins >= 2) return 2;
+    return null; // No winner yet
+  };
+
   const setWinner = (m, side) => {
     m.winner = side === 1 ? 'team1' : 'team2';
     m.status = 'completed';
@@ -1182,6 +1491,29 @@ const PickleballTournamentManager = () => {
       const newRounds = prev.map((r) => r.map((m) => ({ ...m })));
       const m = newRounds[rIdx][mIdx];
 
+      // Best of 3 format
+      if (m.matchFormat === 'best_of_3') {
+        // Set default scores for 2-0 win
+        if (side === 1) {
+          m.game1Score1 = 11;
+          m.game1Score2 = 8;
+          m.game2Score1 = 11;
+          m.game2Score2 = 9;
+          m.game3Score1 = '';
+          m.game3Score2 = '';
+        } else {
+          m.game1Score1 = 8;
+          m.game1Score2 = 11;
+          m.game2Score1 = 9;
+          m.game2Score2 = 11;
+          m.game3Score1 = '';
+          m.game3Score2 = '';
+        }
+        setWinner(m, side);
+        return newRounds;
+      }
+
+      // Single match format
       const s1Empty = m.score1 === '' || m.score1 == null;
       const s2Empty = m.score2 === '' || m.score2 == null;
 
@@ -1328,6 +1660,40 @@ const PickleballTournamentManager = () => {
                     <option value="king_of_court">King of Court</option>
                   </select>
                 </Field>
+
+                {tournamentType === 'round_robin' && (
+                  <>
+                    <Field label="Game format">
+                      <select
+                        value={gameFormat}
+                        onChange={(e) => {
+                          if (rounds.length > 0) {
+                            if (!window.confirm('Changing game format will clear all rounds. Continue?')) return;
+                            clearAllRounds();
+                          }
+                          setGameFormat(e.target.value);
+                        }}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="doubles">Doubles (Random Pairing)</option>
+                        <option value="teamed_doubles">Teamed Doubles (Pre-formed Teams)</option>
+                        <option value="singles">Singles (1v1)</option>
+                      </select>
+                    </Field>
+
+                    <Field label="Match format">
+                      <select
+                        value={matchFormat}
+                        onChange={(e) => setMatchFormat(e.target.value)}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="single_match">1 Match per Round</option>
+                        <option value="best_of_3">Best of 3</option>
+                      </select>
+                    </Field>
+                  </>
+                )}
+
                 <Field label="Skill separation">
                   <label className="flex items-center gap-2">
                     <input
@@ -1498,6 +1864,133 @@ const PickleballTournamentManager = () => {
           </Card>
         )}
 
+        {tab === 'roster' && tournamentType === 'round_robin' && gameFormat === 'teamed_doubles' && (
+          <Card className="mt-3">
+            <h3 className="text-sm font-semibold text-brand-primary mb-3">Team Formation</h3>
+            <p className="text-xs text-brand-primary/70 mb-3">
+              Create fixed teams for the tournament. Teams will play together throughout all rounds.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-3">
+              <select
+                value=""
+                onChange={(e) => {
+                  const player1Id = e.target.value;
+                  if (!player1Id) return;
+                  const player1 = players.find(p => p.id === player1Id);
+                  if (player1) {
+                    setForm(f => ({ ...f, teamPlayer1: player1 }));
+                  }
+                }}
+                className="h-11 rounded-lg border border-brand-gray px-3"
+              >
+                <option value="">Select Player 1</option>
+                {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id)).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
+                ))}
+              </select>
+
+              <select
+                value=""
+                onChange={(e) => {
+                  const player2Id = e.target.value;
+                  if (!player2Id) return;
+                  const player2 = players.find(p => p.id === player2Id);
+                  if (player2) {
+                    setForm(f => ({ ...f, teamPlayer2: player2 }));
+                  }
+                }}
+                className="h-11 rounded-lg border border-brand-gray px-3"
+              >
+                <option value="">Select Player 2</option>
+                {players.filter(p => !teams.some(t => t.player1.id === p.id || t.player2.id === p.id) && p.id !== form.teamPlayer1?.id).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.rating})</option>
+                ))}
+              </select>
+
+              <select
+                value={form.teamGender || 'mixed'}
+                onChange={(e) => setForm(f => ({ ...f, teamGender: e.target.value }))}
+                className="h-11 rounded-lg border border-brand-gray px-3"
+              >
+                <option value="male_male">Male/Male</option>
+                <option value="female_female">Female/Female</option>
+                <option value="mixed">Male/Female (Mixed)</option>
+              </select>
+
+              <Button
+                className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 col-span-2"
+                onClick={() => {
+                  if (!form.teamPlayer1 || !form.teamPlayer2) {
+                    alert('Please select both players');
+                    return;
+                  }
+                  const newTeam = {
+                    id: uid(),
+                    player1: form.teamPlayer1,
+                    player2: form.teamPlayer2,
+                    gender: form.teamGender || 'mixed',
+                    avgRating: (form.teamPlayer1.rating + form.teamPlayer2.rating) / 2
+                  };
+                  setTeams([...teams, newTeam]);
+                  setForm(f => ({ ...f, teamPlayer1: null, teamPlayer2: null, teamGender: 'mixed' }));
+                }}
+                disabled={!form.teamPlayer1 || !form.teamPlayer2}
+              >
+                Add Team
+              </Button>
+            </div>
+
+            {teams.length > 0 && (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-white">
+                    <tr className="text-left">
+                      <th className="p-2">Team</th>
+                      <th className="p-2">Player 1</th>
+                      <th className="p-2">Player 2</th>
+                      <th className="p-2">Type</th>
+                      <th className="p-2">Avg Rating</th>
+                      <th className="p-2 w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teams.map((team, idx) => (
+                      <tr key={team.id} className="border-t border-brand-gray/60">
+                        <td className="p-2 font-semibold">Team {idx + 1}</td>
+                        <td className="p-2">{team.player1.name} ({team.player1.rating})</td>
+                        <td className="p-2">{team.player2.name} ({team.player2.rating})</td>
+                        <td className="p-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            team.gender === 'male_male' ? 'bg-blue-100 text-blue-700' :
+                            team.gender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                            'bg-purple-100 text-purple-700'
+                          }`}>
+                            {team.gender === 'male_male' ? 'M/M' :
+                             team.gender === 'female_female' ? 'F/F' : 'Mixed'}
+                          </span>
+                        </td>
+                        <td className="p-2">{team.avgRating.toFixed(2)}</td>
+                        <td className="p-2 text-right">
+                          <button onClick={() => setTeams(teams.filter(t => t.id !== team.id))} className="text-red-600 hover:underline text-xs">Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {teams.length > 0 && teams.length < 2 && (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="text-xs text-yellow-800">
+                  ⚠️ You need at least 2 teams to start a tournament.
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+
         {tab === 'stats' && (
           <Card>
             <h3 className="text-sm font-semibold text-brand-primary mb-3">
@@ -1633,53 +2126,159 @@ const PickleballTournamentManager = () => {
                         )}
                       </div>
 
-                      <div className="mt-1">
-                        <div className="font-semibold text-brand-primary text-sm">Team 1</div>
-                        {m.team1 ? (
-                          <div className="text-brand-primary/90">
-                            <div className="text-sm sm:text-base font-medium">{m.team1[0].name} <span className="text-xs text-brand-primary/60">({m.team1[0].rating})</span></div>
-                            <div className="text-sm sm:text-base font-medium">{m.team1[1].name} <span className="text-xs text-brand-primary/60">({m.team1[1].rating})</span></div>
+                      {/* Singles Format */}
+                      {m.gameFormat === 'singles' && m.player1 && m.player2 ? (
+                        <>
+                          <div className="mt-1">
+                            <div className="font-semibold text-brand-primary text-sm">Player 1</div>
+                            <div className="text-brand-primary/90">
+                              <div className="text-sm sm:text-base font-medium">{m.player1.name} <span className="text-xs text-brand-primary/60">({m.player1.rating})</span></div>
+                            </div>
                           </div>
-                        ) : <div className="text-sm">TBD</div>}
-                      </div>
 
-                      <div className="mt-2">
-                        <div className="font-semibold text-brand-primary text-sm">Team 2</div>
-                        {m.team2 ? (
-                          <div className="text-brand-primary/90">
-                            <div className="text-sm sm:text-base font-medium">{m.team2[0].name} <span className="text-xs text-brand-primary/60">({m.team2[0].rating})</span></div>
-                            <div className="text-sm sm:text-base font-medium">{m.team2[1].name} <span className="text-xs text-brand-primary/60">({m.team2[1].rating})</span></div>
+                          <div className="mt-2">
+                            <div className="font-semibold text-brand-primary text-sm">Player 2</div>
+                            <div className="text-brand-primary/90">
+                              <div className="text-sm sm:text-base font-medium">{m.player2.name} <span className="text-xs text-brand-primary/60">({m.player2.rating})</span></div>
+                            </div>
                           </div>
-                        ) : <div className="text-sm">TBD</div>}
-                      </div>
+                        </>
+                      ) : (
+                        /* Doubles Format (regular and teamed) */
+                        <>
+                          <div className="mt-1">
+                            <div className="font-semibold text-brand-primary text-sm">Team 1</div>
+                            {m.team1 ? (
+                              <div className="text-brand-primary/90">
+                                <div className="text-sm sm:text-base font-medium">{m.team1[0].name} <span className="text-xs text-brand-primary/60">({m.team1[0].rating})</span></div>
+                                <div className="text-sm sm:text-base font-medium">{m.team1[1].name} <span className="text-xs text-brand-primary/60">({m.team1[1].rating})</span></div>
+                              </div>
+                            ) : <div className="text-sm">TBD</div>}
+                          </div>
 
-                      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={m.score1 === '' ? '' : m.score1 ?? ''}
-                            onChange={(e) => updateScore(rIdx, i, 'score1', e.target.value)}
-                            className="w-20 h-10 rounded border border-brand-gray px-2"
-                          />
-                          <span className="text-brand-primary">–</span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={m.score2 === '' ? '' : m.score2 ?? ''}
-                            onChange={(e) => updateScore(rIdx, i, 'score2', e.target.value)}
-                            className="w-20 h-10 rounded border border-brand-gray px-2"
-                          />
-                        </div>
+                          <div className="mt-2">
+                            <div className="font-semibold text-brand-primary text-sm">Team 2</div>
+                            {m.team2 ? (
+                              <div className="text-brand-primary/90">
+                                <div className="text-sm sm:text-base font-medium">{m.team2[0].name} <span className="text-xs text-brand-primary/60">({m.team2[0].rating})</span></div>
+                                <div className="text-sm sm:text-base font-medium">{m.team2[1].name} <span className="text-xs text-brand-primary/60">({m.team2[1].rating})</span></div>
+                              </div>
+                            ) : <div className="text-sm">TBD</div>}
+                          </div>
+                        </>
+                      )}
+
+                      <div className="mt-3 flex flex-col gap-2">
+                        {/* Best of 3 scoring */}
+                        {m.matchFormat === 'best_of_3' ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-brand-primary/70 w-16">Game 1:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game1Score1 === '' ? '' : m.game1Score1 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game1Score1', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                              <span className="text-brand-primary">–</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game1Score2 === '' ? '' : m.game1Score2 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game1Score2', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-brand-primary/70 w-16">Game 2:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game2Score1 === '' ? '' : m.game2Score1 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game2Score1', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                              <span className="text-brand-primary">–</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game2Score2 === '' ? '' : m.game2Score2 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game2Score2', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-brand-primary/70 w-16">Game 3:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game3Score1 === '' ? '' : m.game3Score1 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game3Score1', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                              <span className="text-brand-primary">–</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.game3Score2 === '' ? '' : m.game3Score2 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'game3Score2', e.target.value)}
+                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          /* Single match scoring */
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={m.score1 === '' ? '' : m.score1 ?? ''}
+                              onChange={(e) => updateScore(rIdx, i, 'score1', e.target.value)}
+                              className="w-20 h-10 rounded border border-brand-gray px-2"
+                            />
+                            <span className="text-brand-primary">–</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={m.score2 === '' ? '' : m.score2 ?? ''}
+                              onChange={(e) => updateScore(rIdx, i, 'score2', e.target.value)}
+                              className="w-20 h-10 rounded border border-brand-gray px-2"
+                            />
+                          </div>
+                        )}
+
 
                         {m.status !== 'completed' ? (
-                          <div className="grid grid-cols-2 gap-2 sm:flex">
-                            <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 1)}>
-                              Team 1 wins
-                            </Button>
-                            <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 2)}>
-                              Team 2 wins
-                            </Button>
+                          <div className="flex flex-col gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:flex">
+                              <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 1)}>
+                                {m.gameFormat === 'singles' ? 'Player 1 wins' : 'Team 1 wins'}
+                              </Button>
+                              <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 2)}>
+                                {m.gameFormat === 'singles' ? 'Player 2 wins' : 'Team 2 wins'}
+                              </Button>
+                            </div>
+                            {m.matchFormat === 'best_of_3' && (
+                              <Button
+                                className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 text-sm"
+                                onClick={() => {
+                                  const winner = calculateBestOf3Winner(m);
+                                  if (winner) {
+                                    setRounds((prev) => {
+                                      const newRounds = prev.map((r) => r.map((match) => ({ ...match })));
+                                      const match = newRounds[rIdx][i];
+                                      setWinner(match, winner);
+                                      return newRounds;
+                                    });
+                                  } else {
+                                    alert('Please enter scores for at least 2 games to determine a winner.');
+                                  }
+                                }}
+                              >
+                                Submit Scores
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1">
