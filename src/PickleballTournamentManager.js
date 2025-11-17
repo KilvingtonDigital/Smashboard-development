@@ -1565,10 +1565,22 @@ const PickleballTournamentManager = () => {
     setPlayerStats(prev => {
       const updated = { ...prev };
       if (!updated[player1.id]) {
-        updated[player1.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+        updated[player1.id] = {
+          roundsPlayed: 0,
+          roundsSatOut: 0,
+          lastPlayedRound: -1,
+          opponents: new Map(),
+          teammates: new Map()
+        };
       }
       if (!updated[player2.id]) {
-        updated[player2.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+        updated[player2.id] = {
+          roundsPlayed: 0,
+          roundsSatOut: 0,
+          lastPlayedRound: -1,
+          opponents: new Map(),
+          teammates: new Map()
+        };
       }
       return updated;
     });
@@ -1621,7 +1633,13 @@ const PickleballTournamentManager = () => {
       const updated = { ...prev };
       [...teamSplit.team1, ...teamSplit.team2].forEach(p => {
         if (!updated[p.id]) {
-          updated[p.id] = { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map() };
+          updated[p.id] = {
+            roundsPlayed: 0,
+            roundsSatOut: 0,
+            lastPlayedRound: -1,
+            opponents: new Map(),
+            teammates: new Map()
+          };
         }
       });
       return updated;
@@ -1781,6 +1799,30 @@ const PickleballTournamentManager = () => {
       // Regular doubles
       setPlayerStats(prev => {
         const updated = { ...prev };
+
+        // Update teammate history for team1
+        if (match.team1 && match.team1.length === 2) {
+          const [p1, p2] = match.team1;
+          if (updated[p1.id] && updated[p2.id]) {
+            if (!updated[p1.id].teammates) updated[p1.id].teammates = new Map();
+            if (!updated[p2.id].teammates) updated[p2.id].teammates = new Map();
+            updated[p1.id].teammates.set(p2.id, (updated[p1.id].teammates.get(p2.id) || 0) + 1);
+            updated[p2.id].teammates.set(p1.id, (updated[p2.id].teammates.get(p1.id) || 0) + 1);
+          }
+        }
+
+        // Update teammate history for team2
+        if (match.team2 && match.team2.length === 2) {
+          const [p1, p2] = match.team2;
+          if (updated[p1.id] && updated[p2.id]) {
+            if (!updated[p1.id].teammates) updated[p1.id].teammates = new Map();
+            if (!updated[p2.id].teammates) updated[p2.id].teammates = new Map();
+            updated[p1.id].teammates.set(p2.id, (updated[p1.id].teammates.get(p2.id) || 0) + 1);
+            updated[p2.id].teammates.set(p1.id, (updated[p2.id].teammates.get(p1.id) || 0) + 1);
+          }
+        }
+
+        // Update rounds played for all players
         match.team1?.forEach(p => {
           if (updated[p.id]) {
             updated[p.id] = {
