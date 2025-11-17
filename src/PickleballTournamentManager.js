@@ -2081,99 +2081,112 @@ const PickleballTournamentManager = () => {
       const newRounds = prev.map((r) => r.map((m) => ({ ...m })));
       const m = newRounds[rIdx][mIdx];
 
-      // Best of 3 format
+      // Best of 3 format - require all game scores to be entered manually
       if (m.matchFormat === 'best_of_3') {
-        // Check if any scores have been entered
-        const hasScores = (m.game1Score1 !== '' && m.game1Score1 != null) ||
-                         (m.game1Score2 !== '' && m.game1Score2 != null) ||
-                         (m.game2Score1 !== '' && m.game2Score1 != null) ||
-                         (m.game2Score2 !== '' && m.game2Score2 != null) ||
-                         (m.game3Score1 !== '' && m.game3Score1 != null) ||
-                         (m.game3Score2 !== '' && m.game3Score2 != null);
+        // Check if Game 1 and Game 2 scores are entered
+        const g1s1 = Number(m.game1Score1);
+        const g1s2 = Number(m.game1Score2);
+        const g2s1 = Number(m.game2Score1);
+        const g2s2 = Number(m.game2Score2);
 
-        if (!hasScores) {
-          // Set default scores for 2-0 win only if no scores entered
-          if (side === 1) {
-            m.game1Score1 = 11;
-            m.game1Score2 = 8;
-            m.game2Score1 = 11;
-            m.game2Score2 = 9;
-            m.game3Score1 = '';
-            m.game3Score2 = '';
-          } else {
-            m.game1Score1 = 8;
-            m.game1Score2 = 11;
-            m.game2Score1 = 9;
-            m.game2Score2 = 11;
-            m.game3Score1 = '';
-            m.game3Score2 = '';
-          }
-        } else {
-          // Scores were manually entered - validate and calculate winner from scores
-          const g1s1 = Number(m.game1Score1) || 0;
-          const g1s2 = Number(m.game1Score2) || 0;
-          const g2s1 = Number(m.game2Score1) || 0;
-          const g2s2 = Number(m.game2Score2) || 0;
-          const g3s1 = Number(m.game3Score1) || 0;
-          const g3s2 = Number(m.game3Score2) || 0;
+        if (!g1s1 || !g1s2 || !g2s1 || !g2s2) {
+          alert('Please enter scores for Game 1 and Game 2 before selecting a winner.');
+          return prev;
+        }
 
-          // Calculate games won by each team
-          let team1Games = 0;
-          let team2Games = 0;
+        // Calculate games won by each team from Game 1 and Game 2
+        let team1Games = 0;
+        let team2Games = 0;
 
-          if (g1s1 > g1s2) team1Games++;
-          else if (g1s2 > g1s1) team2Games++;
+        if (g1s1 > g1s2) team1Games++;
+        else if (g1s2 > g1s1) team2Games++;
+        else {
+          alert('Game 1 cannot be tied. Please enter valid scores.');
+          return prev;
+        }
 
-          if (g2s1 > g2s2) team1Games++;
-          else if (g2s2 > g2s1) team2Games++;
+        if (g2s1 > g2s2) team1Games++;
+        else if (g2s2 > g2s1) team2Games++;
+        else {
+          alert('Game 2 cannot be tied. Please enter valid scores.');
+          return prev;
+        }
 
-          // Check if Game 3 is needed
-          if (team1Games === 2 || team2Games === 2) {
-            // 2-0 win - Game 3 should NOT be played, clear it
-            m.game3Score1 = '';
-            m.game3Score2 = '';
-          } else if (team1Games === 1 && team2Games === 1) {
-            // 1-1 split - Game 3 IS required
-            if ((m.game3Score1 === '' || m.game3Score1 == null) &&
-                (m.game3Score2 === '' || m.game3Score2 == null)) {
-              alert('Game 3 is required when the match is tied 1-1. Please enter Game 3 scores.');
-              return prev;
-            }
-            // Count Game 3 winner
-            if (g3s1 > g3s2) team1Games++;
-            else if (g3s2 > g3s1) team2Games++;
-          }
+        // Check if Game 3 is needed (1-1 split) or not (2-0)
+        if (team1Games === 2 || team2Games === 2) {
+          // 2-0 win - Game 3 should NOT be played, clear it
+          m.game3Score1 = '';
+          m.game3Score2 = '';
 
-          // Determine winner from game scores
-          if (team1Games > team2Games) {
-            setWinner(m, 1);
-          } else if (team2Games > team1Games) {
-            setWinner(m, 2);
-          } else {
-            alert('Cannot determine winner from scores. Please check the entered scores.');
+          // Determine actual winner from scores
+          const actualWinner = team1Games === 2 ? 1 : 2;
+
+          // Validate selected winner matches actual scores
+          if (actualWinner !== side) {
+            const winnerName = actualWinner === 1 ? 'Team 1' : 'Team 2';
+            alert(`Score validation failed: The scores indicate ${winnerName} won 2-0. Please verify the scores or select the correct winner.`);
             return prev;
           }
+
+          setWinner(m, side);
+          return newRounds;
+        } else if (team1Games === 1 && team2Games === 1) {
+          // 1-1 split - Game 3 IS required
+          const g3s1 = Number(m.game3Score1);
+          const g3s2 = Number(m.game3Score2);
+
+          if (!g3s1 || !g3s2) {
+            alert('Match is tied 1-1. Please enter Game 3 scores before selecting a winner.');
+            return prev;
+          }
+
+          if (g3s1 === g3s2) {
+            alert('Game 3 cannot be tied. Please enter valid scores.');
+            return prev;
+          }
+
+          // Count Game 3 winner
+          if (g3s1 > g3s2) team1Games++;
+          else if (g3s2 > g3s1) team2Games++;
+
+          // Determine actual winner from all 3 games
+          const actualWinner = team1Games > team2Games ? 1 : 2;
+
+          // Validate selected winner matches actual scores
+          if (actualWinner !== side) {
+            const winnerName = actualWinner === 1 ? 'Team 1' : 'Team 2';
+            const scoreDisplay = actualWinner === 1 ? `${team1Games}-${team2Games}` : `${team2Games}-${team1Games}`;
+            alert(`Score validation failed: The scores indicate ${winnerName} won ${scoreDisplay}. Please verify the scores or select the correct winner.`);
+            return prev;
+          }
+
+          setWinner(m, side);
           return newRounds;
         }
 
-        setWinner(m, side);
-        return newRounds;
+        alert('Cannot determine match outcome. Please check the entered scores.');
+        return prev;
       }
 
-      // Single match format
-      const s1Empty = m.score1 === '' || m.score1 == null;
-      const s2Empty = m.score2 === '' || m.score2 == null;
+      // Single match format - require score to be entered manually
+      const s1 = Number(m.score1);
+      const s2 = Number(m.score2);
 
-      if (s1Empty && s2Empty) {
-        m.score1 = side === 1 ? 11 : 8;
-        m.score2 = side === 2 ? 11 : 8;
+      if (!s1 || !s2) {
+        alert('Please enter scores before selecting a winner.');
+        return prev;
       }
-
-      const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
-      const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
 
       if (s1 === s2) {
-        alert('Scores are tied. Enter scores or choose a win margin.');
+        alert('Scores cannot be tied. Please enter valid scores.');
+        return prev;
+      }
+
+      // Validate selected winner matches actual scores
+      const actualWinner = s1 > s2 ? 1 : 2;
+      if (actualWinner !== side) {
+        const winnerName = actualWinner === 1 ? 'Team 1' : 'Team 2';
+        alert(`Score validation failed: The score ${s1}-${s2} indicates ${winnerName} won. Please verify the scores or select the correct winner.`);
         return prev;
       }
 
