@@ -1524,15 +1524,36 @@ const PickleballTournamentManager = () => {
       return alert('Need at least 2 available players (not currently playing)');
     }
 
-    // Get best pair from available players
+    // Sort by priority (players who have played least)
     const sortedAvailable = [...availablePlayers].sort((a, b) => {
       const statsA = playerStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
       const statsB = playerStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-      return statsB.roundsSatOut - statsA.roundsSatOut || statsA.roundsPlayed - statsB.roundsPlayed;
+      return statsA.roundsPlayed - statsB.roundsPlayed || statsB.roundsSatOut - statsA.roundsSatOut;
     });
 
-    const player1 = sortedAvailable[0];
-    const player2 = sortedAvailable[1];
+    let player1, player2;
+
+    // Apply skill separation if enabled
+    if (separateBySkill && presentPlayers.length >= 8) {
+      // Start with the highest priority player
+      player1 = sortedAvailable[0];
+
+      // Filter for players who can play with player1 (within ±1 skill level)
+      const compatiblePlayers = sortedAvailable.slice(1).filter(p => canPlayTogether(player1, p));
+
+      if (compatiblePlayers.length > 0) {
+        // Select the highest priority compatible player
+        player2 = compatiblePlayers[0];
+      } else {
+        // No compatible players, fall back to next available
+        console.warn('No skill-compatible players for singles match, using mixed pairing');
+        player2 = sortedAvailable[1];
+      }
+    } else {
+      // No skill separation, use traditional pairing
+      player1 = sortedAvailable[0];
+      player2 = sortedAvailable[1];
+    }
 
     const match = {
       id: uid(),
@@ -1591,14 +1612,41 @@ const PickleballTournamentManager = () => {
       return alert('Need at least 4 available players (not currently playing)');
     }
 
-    // Get best group of 4 from available players
-    const sortedAvailable = [...availablePlayers].sort((a, b) => {
-      const statsA = playerStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-      const statsB = playerStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-      return statsB.roundsSatOut - statsA.roundsSatOut || statsA.roundsPlayed - statsB.roundsPlayed;
-    });
+    let group;
 
-    const group = sortedAvailable.slice(0, 4);
+    // Apply skill separation if enabled
+    if (separateBySkill && presentPlayers.length >= 8) {
+      // Sort by priority (players who have played least)
+      const sortedAvailable = [...availablePlayers].sort((a, b) => {
+        const statsA = playerStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+        const statsB = playerStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+        return statsA.roundsPlayed - statsB.roundsPlayed || statsB.roundsSatOut - statsA.roundsSatOut;
+      });
+
+      // Start with the highest priority player
+      const primaryPlayer = sortedAvailable[0];
+
+      // Filter for players who can play with the primary player (within ±1 skill level)
+      const compatiblePlayers = sortedAvailable.filter(p => canPlayTogether(primaryPlayer, p));
+
+      if (compatiblePlayers.length >= 4) {
+        // Select best group of 4 from skill-compatible players
+        group = selectBestGroupOfFour(compatiblePlayers, playerStats);
+      } else {
+        // Not enough skill-compatible players, fall back to mixed selection
+        console.warn('Not enough skill-compatible players for strict separation, using mixed selection');
+        group = selectBestGroupOfFour(sortedAvailable, playerStats);
+      }
+    } else {
+      // No skill separation, use traditional selection
+      const sortedAvailable = [...availablePlayers].sort((a, b) => {
+        const statsA = playerStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+        const statsB = playerStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+        return statsA.roundsPlayed - statsB.roundsPlayed || statsB.roundsSatOut - statsA.roundsSatOut;
+      });
+      group = selectBestGroupOfFour(sortedAvailable, playerStats);
+    }
+
     const teamSplit = findBestTeamSplit(group, playerStats);
 
     const match = {
