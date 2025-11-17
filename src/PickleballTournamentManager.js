@@ -32,47 +32,100 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
     r.forEach((m) => {
       const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
       const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
+
+      // For best of 3, use the match winner directly
+      let winner = null;
+      if (m.status === 'completed') {
+        if (m.winner) {
+          winner = m.winner; // Use pre-calculated winner
+        } else {
+          // Fallback for single match format
+          winner = s1 > s2 ? 'team1' : 'team2';
+        }
+      }
+
       matches.push({
         round: rIdx + 1,
         court: m.court,
         courtLevel: m.courtLevel || null,
+        gameFormat: m.gameFormat || 'doubles',
+        matchFormat: m.matchFormat || 'single_match',
         team1: m.team1?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
         team2: m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
+        player1: m.player1 ? { id: m.player1.id, name: m.player1.name, rating: m.player1.rating } : null,
+        player2: m.player2 ? { id: m.player2.id, name: m.player2.name, rating: m.player2.rating } : null,
         score1: s1,
         score2: s2,
+        game1Score1: m.game1Score1 || '',
+        game1Score2: m.game1Score2 || '',
+        game2Score1: m.game2Score1 || '',
+        game2Score2: m.game2Score2 || '',
+        game3Score1: m.game3Score1 || '',
+        game3Score2: m.game3Score2 || '',
         status: m.status,
-        winner: m.status === 'completed' ? (s1 > s2 ? 'team1' : 'team2') : null,
+        winner: winner,
         pointsAwarded: m.pointsAwarded || null
       });
     })
   );
-  return { 
-    generatedAt: new Date().toISOString(), 
-    players, 
-    matches, 
+  return {
+    generatedAt: new Date().toISOString(),
+    players,
+    matches,
     meta,
-    kingOfCourtStats: kotStats 
+    kingOfCourtStats: kotStats
   };
 };
 
 /* ---- CSV + download ---- */
 const toCSV = (results) => {
   const header = [
-    'round','court','court_level',
+    'round','court','court_level','game_format',
     't1_p1','t1_p1_rating','t1_p2','t1_p2_rating',
     't2_p1','t2_p1_rating','t2_p2','t2_p2_rating',
-    'score1','score2','winner','points_awarded'
+    'match_format','games_won_t1','games_won_t2',
+    'game1_t1','game1_t2','game2_t1','game2_t2','game3_t1','game3_t2',
+    'winner'
   ];
-  const rows = results.matches.map((m) =>
-    [
-      m.round, m.court, m.courtLevel || '',
-      m.team1?.[0]?.name || '', m.team1?.[0]?.rating || '',
-      m.team1?.[1]?.name || '', m.team1?.[1]?.rating || '',
-      m.team2?.[0]?.name || '', m.team2?.[0]?.rating || '',
-      m.team2?.[1]?.name || '', m.team2?.[1]?.rating || '',
-      m.score1, m.score2, m.winner || '', m.pointsAwarded || ''
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
-  );
+  const rows = results.matches.map((m) => {
+    // Calculate games won for best of 3
+    let gamesWonT1 = 0;
+    let gamesWonT2 = 0;
+    if (m.matchFormat === 'best_of_3') {
+      const g1s1 = Number(m.game1Score1) || 0;
+      const g1s2 = Number(m.game1Score2) || 0;
+      if (g1s1 > g1s2) gamesWonT1++;
+      else if (g1s2 > g1s1) gamesWonT2++;
+
+      const g2s1 = Number(m.game2Score1) || 0;
+      const g2s2 = Number(m.game2Score2) || 0;
+      if (g2s1 > g2s2) gamesWonT1++;
+      else if (g2s2 > g2s1) gamesWonT2++;
+
+      const g3s1 = Number(m.game3Score1) || 0;
+      const g3s2 = Number(m.game3Score2) || 0;
+      if (g3s1 > g3s2) gamesWonT1++;
+      else if (g3s2 > g3s1) gamesWonT2++;
+    }
+
+    return [
+      m.round, m.court, m.courtLevel || '', m.gameFormat || '',
+      m.gameFormat === 'singles' ? (m.player1?.name || '') : (m.team1?.[0]?.name || ''),
+      m.gameFormat === 'singles' ? (m.player1?.rating || '') : (m.team1?.[0]?.rating || ''),
+      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.name || ''),
+      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.rating || ''),
+      m.gameFormat === 'singles' ? (m.player2?.name || '') : (m.team2?.[0]?.name || ''),
+      m.gameFormat === 'singles' ? (m.player2?.rating || '') : (m.team2?.[0]?.rating || ''),
+      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.name || ''),
+      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.rating || ''),
+      m.matchFormat || 'single_match',
+      gamesWonT1, gamesWonT2,
+      m.game1Score1 || '', m.game1Score2 || '',
+      m.game2Score1 || '', m.game2Score2 || '',
+      m.game3Score1 || '', m.game3Score2 || '',
+      m.winner || ''
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
   return [header.join(','), ...rows].join('\n');
 };
 
@@ -1717,9 +1770,20 @@ const PickleballTournamentManager = () => {
 
   const completeCourtMatch = (courtNumber) => {
     const court = courtStates.find(c => c.courtNumber === courtNumber);
-    if (!court || !court.currentMatch) return;
+    if (!court || !court.currentMatch) {
+      console.warn(`Cannot complete match on court ${courtNumber} - no match found`);
+      return;
+    }
 
     const match = court.currentMatch;
+    console.log(`Completing match on court ${courtNumber}:`, match);
+
+    // First, free up the court so availablePlayers calculation is correct
+    setCourtStates(prev => prev.map(c =>
+      c.courtNumber === courtNumber
+        ? { ...c, status: 'ready', currentMatch: null }
+        : c
+    ));
 
     // Add match to current round in rounds array
     setRounds(prev => {
@@ -1734,10 +1798,23 @@ const PickleballTournamentManager = () => {
       return newRounds;
     });
 
+    // Calculate who was sitting out BEFORE this match completed
+    // (excluding the players in this match)
+    const playersInThisMatch = new Set();
+    if (match.gameFormat === 'singles') {
+      playersInThisMatch.add(match.player1.id);
+      playersInThisMatch.add(match.player2.id);
+    } else {
+      match.team1?.forEach(p => playersInThisMatch.add(p.id));
+      match.team2?.forEach(p => playersInThisMatch.add(p.id));
+    }
+
     // Update player/team stats
     if (match.gameFormat === 'singles') {
       setPlayerStats(prev => {
         const updated = { ...prev };
+
+        // Update playing players
         if (updated[match.player1.id]) {
           updated[match.player1.id] = {
             ...updated[match.player1.id],
@@ -1752,15 +1829,31 @@ const PickleballTournamentManager = () => {
             lastPlayedRound: currentRound
           };
         }
-        // Update sitting-out stats for those not playing
-        availablePlayers.forEach(p => {
-          if (updated[p.id]) {
-            updated[p.id] = {
-              ...updated[p.id],
-              roundsSatOut: updated[p.id].roundsSatOut + 1
-            };
+
+        // Update sitting-out players (those not in ANY match this round)
+        presentPlayers.forEach(p => {
+          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
+            // Check if they're currently on any court
+            const onCourt = courtStates.some(c => {
+              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
+              const m = c.currentMatch;
+              if (m.gameFormat === 'singles') {
+                return m.player1?.id === p.id || m.player2?.id === p.id;
+              } else {
+                return m.team1?.some(player => player.id === p.id) ||
+                       m.team2?.some(player => player.id === p.id);
+              }
+            });
+
+            if (!onCourt) {
+              updated[p.id] = {
+                ...updated[p.id],
+                roundsSatOut: updated[p.id].roundsSatOut + 1
+              };
+            }
           }
         });
+
         return updated;
       });
     } else if (match.gameFormat === 'teamed_doubles') {
@@ -1780,21 +1873,13 @@ const PickleballTournamentManager = () => {
             lastPlayedRound: currentRound
           };
         }
-        // Update sitting-out stats for those not playing
-        availableTeams.forEach(t => {
-          if (updated[t.id]) {
-            updated[t.id] = {
-              ...updated[t.id],
-              roundsSatOut: updated[t.id].roundsSatOut + 1
-            };
-          }
-        });
         return updated;
       });
     } else {
       // Regular doubles
       setPlayerStats(prev => {
         const updated = { ...prev };
+
         match.team1?.forEach(p => {
           if (updated[p.id]) {
             updated[p.id] = {
@@ -1813,25 +1898,33 @@ const PickleballTournamentManager = () => {
             };
           }
         });
-        // Update sitting-out stats for those not playing
-        availablePlayers.forEach(p => {
-          if (updated[p.id]) {
-            updated[p.id] = {
-              ...updated[p.id],
-              roundsSatOut: updated[p.id].roundsSatOut + 1
-            };
+
+        // Update sitting-out players
+        presentPlayers.forEach(p => {
+          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
+            const onCourt = courtStates.some(c => {
+              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
+              const m = c.currentMatch;
+              if (m.gameFormat === 'singles') {
+                return m.player1?.id === p.id || m.player2?.id === p.id;
+              } else {
+                return m.team1?.some(player => player.id === p.id) ||
+                       m.team2?.some(player => player.id === p.id);
+              }
+            });
+
+            if (!onCourt) {
+              updated[p.id] = {
+                ...updated[p.id],
+                roundsSatOut: updated[p.id].roundsSatOut + 1
+              };
+            }
           }
         });
+
         return updated;
       });
     }
-
-    // Free up the court
-    setCourtStates(prev => prev.map(c =>
-      c.courtNumber === courtNumber
-        ? { ...c, status: 'ready', currentMatch: null }
-        : c
-    ));
   };
 
   const updateCourtStatus = (courtNumber, status) => {
@@ -2644,12 +2737,31 @@ const PickleballTournamentManager = () => {
                             </>
                           )}
                           {court.status === 'cleaning' && (
-                            <Button
-                              className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
-                              onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
-                            >
-                              Mark Ready
-                            </Button>
+                            <>
+                              {court.currentMatch && (
+                                <Button
+                                  className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
+                                  onClick={() => {
+                                    completeCourtMatch(court.courtNumber);
+                                  }}
+                                >
+                                  Complete Match
+                                </Button>
+                              )}
+                              <Button
+                                className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
+                                onClick={() => {
+                                  // Clear match and mark ready
+                                  setCourtStates(prev => prev.map(c =>
+                                    c.courtNumber === court.courtNumber
+                                      ? { ...c, status: 'ready', currentMatch: null }
+                                      : c
+                                  ));
+                                }}
+                              >
+                                Clear & Mark Ready
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
