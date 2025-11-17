@@ -1873,10 +1873,13 @@ const PickleballTournamentManager = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-3">
               <select
-                value=""
+                value={form.teamPlayer1?.id || ''}
                 onChange={(e) => {
                   const player1Id = e.target.value;
-                  if (!player1Id) return;
+                  if (!player1Id) {
+                    setForm(f => ({ ...f, teamPlayer1: null }));
+                    return;
+                  }
                   const player1 = players.find(p => p.id === player1Id);
                   if (player1) {
                     setForm(f => ({ ...f, teamPlayer1: player1 }));
@@ -1891,10 +1894,13 @@ const PickleballTournamentManager = () => {
               </select>
 
               <select
-                value=""
+                value={form.teamPlayer2?.id || ''}
                 onChange={(e) => {
                   const player2Id = e.target.value;
-                  if (!player2Id) return;
+                  if (!player2Id) {
+                    setForm(f => ({ ...f, teamPlayer2: null }));
+                    return;
+                  }
                   const player2 = players.find(p => p.id === player2Id);
                   if (player2) {
                     setForm(f => ({ ...f, teamPlayer2: player2 }));
