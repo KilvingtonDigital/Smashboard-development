@@ -1902,31 +1902,61 @@ const PickleballTournamentManager = () => {
 
   // Calculate winner for best of 3 format
   const calculateBestOf3Winner = (m) => {
+    console.log('Calculating best of 3 winner for match:', {
+      game1: `${m.game1Score1}-${m.game1Score2}`,
+      game2: `${m.game2Score1}-${m.game2Score2}`,
+      game3: `${m.game3Score1}-${m.game3Score2}`
+    });
+
     let side1Wins = 0;
     let side2Wins = 0;
 
     // Game 1
     const g1s1 = typeof m.game1Score1 === 'number' ? m.game1Score1 : Number(m.game1Score1) || 0;
     const g1s2 = typeof m.game1Score2 === 'number' ? m.game1Score2 : Number(m.game1Score2) || 0;
-    if (g1s1 > g1s2) side1Wins++;
-    else if (g1s2 > g1s1) side2Wins++;
+    if (g1s1 > g1s2) {
+      side1Wins++;
+      console.log(`Game 1: Team 1 wins (${g1s1}-${g1s2})`);
+    } else if (g1s2 > g1s1) {
+      side2Wins++;
+      console.log(`Game 1: Team 2 wins (${g1s1}-${g1s2})`);
+    }
 
     // Game 2
     const g2s1 = typeof m.game2Score1 === 'number' ? m.game2Score1 : Number(m.game2Score1) || 0;
     const g2s2 = typeof m.game2Score2 === 'number' ? m.game2Score2 : Number(m.game2Score2) || 0;
-    if (g2s1 > g2s2) side1Wins++;
-    else if (g2s2 > g2s1) side2Wins++;
+    if (g2s1 > g2s2) {
+      side1Wins++;
+      console.log(`Game 2: Team 1 wins (${g2s1}-${g2s2})`);
+    } else if (g2s2 > g2s1) {
+      side2Wins++;
+      console.log(`Game 2: Team 2 wins (${g2s1}-${g2s2})`);
+    }
 
     // Game 3 (if needed)
     if (side1Wins < 2 && side2Wins < 2) {
       const g3s1 = typeof m.game3Score1 === 'number' ? m.game3Score1 : Number(m.game3Score1) || 0;
       const g3s2 = typeof m.game3Score2 === 'number' ? m.game3Score2 : Number(m.game3Score2) || 0;
-      if (g3s1 > g3s2) side1Wins++;
-      else if (g3s2 > g3s1) side2Wins++;
+      if (g3s1 > g3s2) {
+        side1Wins++;
+        console.log(`Game 3: Team 1 wins (${g3s1}-${g3s2})`);
+      } else if (g3s2 > g3s1) {
+        side2Wins++;
+        console.log(`Game 3: Team 2 wins (${g3s1}-${g3s2})`);
+      }
     }
 
-    if (side1Wins >= 2) return 1;
-    if (side2Wins >= 2) return 2;
+    console.log(`Total: Team 1 won ${side1Wins} games, Team 2 won ${side2Wins} games`);
+
+    if (side1Wins >= 2) {
+      console.log('Winner: Team 1');
+      return 1;
+    }
+    if (side2Wins >= 2) {
+      console.log('Winner: Team 2');
+      return 2;
+    }
+    console.log('No winner yet');
     return null; // No winner yet
   };
 
@@ -2901,17 +2931,22 @@ const PickleballTournamentManager = () => {
                               <Button
                                 className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 text-sm"
                                 onClick={() => {
-                                  const winner = calculateBestOf3Winner(m);
-                                  if (winner) {
-                                    setRounds((prev) => {
-                                      const newRounds = prev.map((r) => r.map((match) => ({ ...match })));
-                                      const match = newRounds[rIdx][i];
+                                  setRounds((prev) => {
+                                    const newRounds = prev.map((r) => r.map((match) => ({ ...match })));
+                                    const match = newRounds[rIdx][i];
+
+                                    // Calculate winner from fresh state
+                                    const winner = calculateBestOf3Winner(match);
+                                    console.log('Setting winner to:', winner === 1 ? 'team1' : winner === 2 ? 'team2' : 'none');
+
+                                    if (winner) {
                                       setWinner(match, winner);
                                       return newRounds;
-                                    });
-                                  } else {
-                                    alert('Please enter scores for at least 2 games to determine a winner.');
-                                  }
+                                    } else {
+                                      alert('Please enter scores for at least 2 games to determine a winner.');
+                                      return prev; // Don't update if no winner
+                                    }
+                                  });
                                 }}
                               >
                                 Submit Scores
