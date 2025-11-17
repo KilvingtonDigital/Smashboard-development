@@ -1704,38 +1704,66 @@ const PickleballTournamentManager = () => {
     const femaleTeams = availableTeams.filter(t => t.gender === 'female_female');
     const mixedTeams = availableTeams.filter(t => t.gender === 'mixed');
 
-    let team1, team2, genderType;
+    let selectedTeams, genderType;
 
     // Try to match within the largest gender group
     if (maleTeams.length >= 2) {
-      const sorted = maleTeams.sort((a, b) => {
-        const statsA = teamStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        const statsB = teamStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        return statsB.roundsSatOut - statsA.roundsSatOut || statsA.roundsPlayed - statsB.roundsPlayed;
-      });
-      team1 = sorted[0];
-      team2 = sorted[1];
+      selectedTeams = maleTeams;
       genderType = 'male_male';
     } else if (femaleTeams.length >= 2) {
-      const sorted = femaleTeams.sort((a, b) => {
-        const statsA = teamStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        const statsB = teamStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        return statsB.roundsSatOut - statsA.roundsSatOut || statsA.roundsPlayed - statsB.roundsPlayed;
-      });
-      team1 = sorted[0];
-      team2 = sorted[1];
+      selectedTeams = femaleTeams;
       genderType = 'female_female';
     } else if (mixedTeams.length >= 2) {
-      const sorted = mixedTeams.sort((a, b) => {
-        const statsA = teamStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        const statsB = teamStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
-        return statsB.roundsSatOut - statsA.roundsSatOut || statsA.roundsPlayed - statsB.roundsPlayed;
-      });
-      team1 = sorted[0];
-      team2 = sorted[1];
+      selectedTeams = mixedTeams;
       genderType = 'mixed';
     } else {
       return alert('Need at least 2 teams of the same gender type available');
+    }
+
+    // Sort teams by priority (least matches played first)
+    const sortedTeams = [...selectedTeams].sort((a, b) => {
+      const statsA = teamStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+      const statsB = teamStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
+      return statsA.roundsPlayed - statsB.roundsPlayed || statsB.roundsSatOut - statsA.roundsSatOut;
+    });
+
+    let team1, team2;
+
+    // If we have many teams, try to find a balanced matchup
+    if (sortedTeams.length >= 3) {
+      // Start with the highest priority team
+      team1 = sortedTeams[0];
+
+      // Find the best opponent for team1 from remaining teams
+      const potentialOpponents = sortedTeams.slice(1);
+
+      // Score each potential opponent
+      const scoredOpponents = potentialOpponents.map(team => {
+        let score = 0;
+        const stats1 = teamStats[team1.id] || { opponents: new Map() };
+
+        // Penalty for rating difference (prefer close ratings)
+        const ratingDiff = Math.abs(team1.avgRating - team.avgRating);
+        score += ratingDiff * 10;
+
+        // Penalty for repeated matchups
+        const timesPlayed = stats1.opponents?.get(team.id) || 0;
+        score += timesPlayed * 20;
+
+        // Small bonus for teams that have played fewer matches overall
+        const teamStats2 = teamStats[team.id] || { roundsPlayed: 0 };
+        score -= (5 - teamStats2.roundsPlayed) * 2;
+
+        return { team, score };
+      });
+
+      // Select opponent with lowest score (best match)
+      scoredOpponents.sort((a, b) => a.score - b.score);
+      team2 = scoredOpponents[0].team;
+    } else {
+      // Only 2 teams available, use them
+      team1 = sortedTeams[0];
+      team2 = sortedTeams[1];
     }
 
     const match = {
@@ -1825,6 +1853,16 @@ const PickleballTournamentManager = () => {
     } else if (match.gameFormat === 'teamed_doubles') {
       setTeamStats(prev => {
         const updated = { ...prev };
+
+        // Update opponent history
+        if (updated[match.team1Id] && updated[match.team2Id]) {
+          if (!updated[match.team1Id].opponents) updated[match.team1Id].opponents = new Map();
+          if (!updated[match.team2Id].opponents) updated[match.team2Id].opponents = new Map();
+          updated[match.team1Id].opponents.set(match.team2Id, (updated[match.team1Id].opponents.get(match.team2Id) || 0) + 1);
+          updated[match.team2Id].opponents.set(match.team1Id, (updated[match.team2Id].opponents.get(match.team1Id) || 0) + 1);
+        }
+
+        // Update rounds played
         if (updated[match.team1Id]) {
           updated[match.team1Id] = {
             ...updated[match.team1Id],
