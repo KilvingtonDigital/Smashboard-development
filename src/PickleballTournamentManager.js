@@ -2162,7 +2162,24 @@ const PickleballTournamentManager = () => {
                     min={1}
                     max={12}
                     value={courts}
-                    onChange={(e) => setCourts(Math.max(1, Number(e.target.value) || 1))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Allow empty string during editing
+                      if (val === '') {
+                        setCourts('');
+                      } else {
+                        const numVal = Number(val);
+                        if (!isNaN(numVal)) {
+                          setCourts(Math.max(1, Math.min(12, numVal)));
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Enforce minimum value when user leaves the field
+                      if (e.target.value === '' || Number(e.target.value) < 1) {
+                        setCourts(1);
+                      }
+                    }}
                     className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                     disabled={locked}
                   />
