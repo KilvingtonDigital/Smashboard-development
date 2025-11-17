@@ -1441,36 +1441,43 @@ const assignTeamsToCourts = (groupTeams, kotTeamStats, previousRounds, roundInde
   });
 
   const sortedTeams = [];
+  const assignedTeamIds = new Set(); // Track which teams have been assigned
 
   for (let courtIdx = 0; courtIdx < numCourts; courtIdx++) {
     const courtNumber = startingCourtIndex + courtIdx;
 
+    // Get winners from this court who haven't been assigned yet
     const winnersFromThisCourt = teamResults.filter(tr =>
-      tr.lastCourt === courtNumber && tr.won
+      tr.lastCourt === courtNumber && tr.won && !assignedTeamIds.has(tr.team.id)
     ).map(tr => tr.team);
 
+    // Get top winner from court below (only for non-bottom courts)
     const winnersFromBelowCourt = courtIdx < numCourts - 1 ?
       teamResults.filter(tr =>
-        tr.lastCourt === courtNumber + 1 && tr.won
+        tr.lastCourt === courtNumber + 1 && tr.won && !assignedTeamIds.has(tr.team.id)
       ).map(tr => tr.team).slice(0, 1) : []; // Only 1 team moves up
 
+    // Get losers from this court who haven't been assigned yet
     const losersFromThisCourt = teamResults.filter(tr =>
-      tr.lastCourt === courtNumber && !tr.won
+      tr.lastCourt === courtNumber && !tr.won && !assignedTeamIds.has(tr.team.id)
     ).map(tr => tr.team);
 
     let courtTeams = [...winnersFromThisCourt];
 
+    // King Court (top court) gets the top winner from court below
     if (courtIdx === 0) {
       courtTeams.push(...winnersFromBelowCourt);
     }
 
+    // Fill remaining spots with losers
     while (courtTeams.length < 2 && losersFromThisCourt.length > 0) {
       courtTeams.push(losersFromThisCourt.shift());
     }
 
+    // If still need more teams, get any unassigned teams
     if (courtTeams.length < 2) {
       const available = teamResults
-        .filter(tr => !sortedTeams.includes(tr.team))
+        .filter(tr => !assignedTeamIds.has(tr.team.id))
         .map(tr => tr.team);
 
       while (courtTeams.length < 2 && available.length > 0) {
@@ -1478,10 +1485,14 @@ const assignTeamsToCourts = (groupTeams, kotTeamStats, previousRounds, roundInde
       }
     }
 
-    sortedTeams.push(...courtTeams.slice(0, 2));
+    // Mark these teams as assigned
+    courtTeams.slice(0, 2).forEach(team => {
+      assignedTeamIds.add(team.id);
+      sortedTeams.push(team);
+    });
   }
 
-  const remaining = groupTeams.filter(t => !sortedTeams.includes(t));
+  const remaining = groupTeams.filter(t => !assignedTeamIds.has(t.id));
   sortedTeams.push(...remaining);
 
   return sortedTeams;
