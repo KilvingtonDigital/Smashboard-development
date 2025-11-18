@@ -33,6 +33,15 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
       const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
       const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
 
+      // For best of 3, use the match winner directly
+      let winner = null;
+      if (m.status === 'completed') {
+        if (m.winner) {
+          winner = m.winner; // Use pre-calculated winner
+        } else {
+          // Fallback for single match format
+          winner = s1 > s2 ? 'team1' : 'team2';
+        }
       // Handle both singles (player1/player2) and doubles (team1/team2) formats
       let team1Data, team2Data;
       if (m.gameFormat === 'singles') {
@@ -50,6 +59,13 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
         court: m.court,
         courtLevel: m.courtLevel || null,
         gameFormat: m.gameFormat || 'doubles',
+        matchFormat: m.matchFormat || 'single_match',
+        team1: m.team1?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
+        team2: m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
+        player1: m.player1 ? { id: m.player1.id, name: m.player1.name, rating: m.player1.rating } : null,
+        player2: m.player2 ? { id: m.player2.id, name: m.player2.name, rating: m.player2.rating } : null,
+        score1: s1,
+        score2: s2,
         team1: team1Data,
         team2: team2Data,
         score1: s1,
@@ -61,6 +77,9 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
         game2Score2: m.game2Score2 || '',
         game3Score1: m.game3Score1 || '',
         game3Score2: m.game3Score2 || '',
+        status: m.status,
+        winner: winner,
+        pointsAwarded: m.pointsAwarded || null
         matchFormat: m.matchFormat || 'single_match',
         status: m.status,
         winner: m.winner || null,
@@ -88,6 +107,47 @@ const toCSV = (results) => {
     't2_p1','t2_p1_rating','t2_p2','t2_p2_rating',
     'match_format','games_won_t1','games_won_t2',
     'game1_t1','game1_t2','game2_t1','game2_t2','game3_t1','game3_t2',
+    'winner'
+  ];
+  const rows = results.matches.map((m) => {
+    // Calculate games won for best of 3
+    let gamesWonT1 = 0;
+    let gamesWonT2 = 0;
+    if (m.matchFormat === 'best_of_3') {
+      const g1s1 = Number(m.game1Score1) || 0;
+      const g1s2 = Number(m.game1Score2) || 0;
+      if (g1s1 > g1s2) gamesWonT1++;
+      else if (g1s2 > g1s1) gamesWonT2++;
+
+      const g2s1 = Number(m.game2Score1) || 0;
+      const g2s2 = Number(m.game2Score2) || 0;
+      if (g2s1 > g2s2) gamesWonT1++;
+      else if (g2s2 > g2s1) gamesWonT2++;
+
+      const g3s1 = Number(m.game3Score1) || 0;
+      const g3s2 = Number(m.game3Score2) || 0;
+      if (g3s1 > g3s2) gamesWonT1++;
+      else if (g3s2 > g3s1) gamesWonT2++;
+    }
+
+    return [
+      m.round, m.court, m.courtLevel || '', m.gameFormat || '',
+      m.gameFormat === 'singles' ? (m.player1?.name || '') : (m.team1?.[0]?.name || ''),
+      m.gameFormat === 'singles' ? (m.player1?.rating || '') : (m.team1?.[0]?.rating || ''),
+      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.name || ''),
+      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.rating || ''),
+      m.gameFormat === 'singles' ? (m.player2?.name || '') : (m.team2?.[0]?.name || ''),
+      m.gameFormat === 'singles' ? (m.player2?.rating || '') : (m.team2?.[0]?.rating || ''),
+      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.name || ''),
+      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.rating || ''),
+      m.matchFormat || 'single_match',
+      gamesWonT1, gamesWonT2,
+      m.game1Score1 || '', m.game1Score2 || '',
+      m.game2Score1 || '', m.game2Score2 || '',
+      m.game3Score1 || '', m.game3Score2 || '',
+      m.winner || ''
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
     'winner','points_awarded','start_time','end_time','duration_minutes'
   ];
   const rows = results.matches.map((m) =>
@@ -1270,43 +1330,62 @@ const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundInde
   });
   
   const sortedPlayers = [];
-  
+
   for (let courtIdx = 0; courtIdx < numCourts; courtIdx++) {
     const courtNumber = startingCourtIndex + courtIdx;
-    
-    const winnersFromThisCourt = playerResults.filter(pr => 
+
+    const winnersFromThisCourt = playerResults.filter(pr =>
       pr.lastCourt === courtNumber && pr.won
     ).map(pr => pr.player);
-    
-    const winnersFromBelowCourt = courtIdx < numCourts - 1 ? 
-      playerResults.filter(pr => 
+
+    // Winners from the court below move up (except for the last court)
+    const winnersFromBelowCourt = courtIdx < numCourts - 1 ?
+      playerResults.filter(pr =>
         pr.lastCourt === courtNumber + 1 && pr.won
       ).map(pr => pr.player).slice(0, 2) : [];
-    
-    const losersFromThisCourt = playerResults.filter(pr => 
+
+    const losersFromThisCourt = playerResults.filter(pr =>
       pr.lastCourt === courtNumber && !pr.won
     ).map(pr => pr.player);
-    
-    let courtPlayers = [...winnersFromThisCourt];
-    
-    if (courtIdx === 0) {
+
+    // Losers from the court above move down (except for the first court)
+    const losersFromAboveCourt = courtIdx > 0 ?
+      playerResults.filter(pr =>
+        pr.lastCourt === courtNumber - 1 && !pr.won
+      ).map(pr => pr.player).slice(0, 2) : [];
+
+    let courtPlayers = [];
+
+    // Priority order for filling the court:
+    // 1. Winners from THIS court stay
+    courtPlayers.push(...winnersFromThisCourt);
+
+    // 2. Losers from ABOVE court move down (not applicable to Court 1/King court)
+    if (courtIdx > 0) {
+      courtPlayers.push(...losersFromAboveCourt);
+    }
+
+    // 3. Winners from BELOW court move up (not applicable to last court)
+    if (courtIdx < numCourts - 1) {
       courtPlayers.push(...winnersFromBelowCourt);
     }
-    
+
+    // 4. Fill remaining slots with losers from THIS court
     while (courtPlayers.length < 4 && losersFromThisCourt.length > 0) {
       courtPlayers.push(losersFromThisCourt.shift());
     }
-    
+
+    // 5. Fill any remaining slots with available players
     if (courtPlayers.length < 4) {
       const available = playerResults
         .filter(pr => !sortedPlayers.includes(pr.player))
         .map(pr => pr.player);
-      
+
       while (courtPlayers.length < 4 && available.length > 0) {
         courtPlayers.push(available.shift());
       }
     }
-    
+
     sortedPlayers.push(...courtPlayers.slice(0, 4));
   }
   
@@ -1882,9 +1961,17 @@ const PickleballTournamentManager = () => {
           })
           .sort((a, b) => b.priority - a.priority);
       }
+    } else if (tournamentType === 'king_of_court') {
+      // King of Court: show available players sorted by KOT stats
+      return availablePlayers
+        .map(p => {
+          const stats = kotStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, totalPoints: 0 };
+          return { ...p, roundsPlayed: stats.roundsPlayed || 0, roundsSatOut: stats.roundsSatOut || 0 };
+        })
+        .sort((a, b) => b.roundsSatOut - a.roundsSatOut || a.roundsPlayed - b.roundsPlayed);
     }
     return [];
-  }, [tournamentType, gameFormat, availablePlayers, availableTeams, playerStats, teamStats]);
+  }, [tournamentType, gameFormat, availablePlayers, availableTeams, playerStats, teamStats, kotStats]);
 
   const addPlayer = () => {
     const name = form.name.trim();
@@ -1957,7 +2044,14 @@ const PickleballTournamentManager = () => {
         assignDoublesMatchToCourt(courtNumber);
       }
     } else if (tournamentType === 'king_of_court') {
-      alert('King of Court mode uses full round generation. Use "Generate Next Round" instead.');
+      // King of Court requires all courts to complete before generating next round
+      // Check if all courts are ready (meaning previous round is complete)
+      const allCourtsReady = courtStates.every(c => c.status === 'ready');
+      if (allCourtsReady) {
+        alert('Use "Generate Next Round" to start a new King of Court cycle. All courts must complete before shuffling players.');
+      } else {
+        alert('Complete all current matches before starting the next King of Court round.');
+      }
     }
   };
 
@@ -2259,27 +2353,64 @@ const PickleballTournamentManager = () => {
 
   const completeCourtMatch = (courtNumber) => {
     const court = courtStates.find(c => c.courtNumber === courtNumber);
-    if (!court || !court.currentMatch) return;
+    if (!court || !court.currentMatch) {
+      console.warn(`Cannot complete match on court ${courtNumber} - no match found`);
+      return;
+    }
 
     const match = court.currentMatch;
+    console.log(`Completing match on court ${courtNumber}:`, match);
 
-    // Add match to current round in rounds array
-    setRounds(prev => {
-      const newRounds = [...prev];
-      if (newRounds.length === 0 || newRounds.length <= currentRound) {
-        // Create new round if needed
-        newRounds.push([match]);
-      } else {
-        // Add to current round
-        newRounds[currentRound] = [...newRounds[currentRound], match];
-      }
-      return newRounds;
-    });
+    // First, free up the court so availablePlayers calculation is correct
+    setCourtStates(prev => prev.map(c =>
+      c.courtNumber === courtNumber
+        ? { ...c, status: 'ready', currentMatch: null }
+        : c
+    ));
 
-    // Update player/team stats
+    // For King of Court, match is already in rounds array, so just update it in place
+    // For Round Robin, add match to current round
+    if (tournamentType === 'king_of_court') {
+      // Match is already in the rounds array, no need to add it again
+      // The match object reference in rounds is the same, so it's already updated with scores/winner
+      console.log('King of Court match completed - already in rounds array');
+    } else {
+      // Add match to current round in rounds array for Round Robin
+      setRounds(prev => {
+        const newRounds = [...prev];
+        if (newRounds.length === 0 || newRounds.length <= currentRound) {
+          // Create new round if needed
+          newRounds.push([match]);
+        } else {
+          // Add to current round
+          newRounds[currentRound] = [...newRounds[currentRound], match];
+        }
+        return newRounds;
+      });
+    }
+
+    // Skip stat updates for King of Court (handled separately in setWinner)
+    if (tournamentType === 'king_of_court') {
+      return;
+    }
+
+    // Calculate who was sitting out BEFORE this match completed
+    // (excluding the players in this match)
+    const playersInThisMatch = new Set();
+    if (match.gameFormat === 'singles') {
+      playersInThisMatch.add(match.player1.id);
+      playersInThisMatch.add(match.player2.id);
+    } else {
+      match.team1?.forEach(p => playersInThisMatch.add(p.id));
+      match.team2?.forEach(p => playersInThisMatch.add(p.id));
+    }
+
+    // Update player/team stats (Round Robin only)
     if (match.gameFormat === 'singles') {
       setPlayerStats(prev => {
         const updated = { ...prev };
+
+        // Update playing players
         const playTime = match.durationMinutes || 0;
 
         if (updated[match.player1.id]) {
@@ -2298,6 +2429,31 @@ const PickleballTournamentManager = () => {
             totalPlayMinutes: (updated[match.player2.id].totalPlayMinutes || 0) + playTime
           };
         }
+
+        // Update sitting-out players (those not in ANY match this round)
+        presentPlayers.forEach(p => {
+          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
+            // Check if they're currently on any court
+            const onCourt = courtStates.some(c => {
+              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
+              const m = c.currentMatch;
+              if (m.gameFormat === 'singles') {
+                return m.player1?.id === p.id || m.player2?.id === p.id;
+              } else {
+                return m.team1?.some(player => player.id === p.id) ||
+                       m.team2?.some(player => player.id === p.id);
+              }
+            });
+
+            if (!onCourt) {
+              updated[p.id] = {
+                ...updated[p.id],
+                roundsSatOut: updated[p.id].roundsSatOut + 1
+              };
+            }
+          }
+        });
+
         // Note: roundsSatOut is not tracked in continuous play mode
         // It only makes sense for traditional round-based generation
         return updated;
@@ -2382,6 +2538,34 @@ const PickleballTournamentManager = () => {
             updated[p.id] = {
               ...updated[p.id],
               roundsPlayed: updated[p.id].roundsPlayed + 1,
+              lastPlayedRound: currentRound
+            };
+          }
+        });
+
+        // Update sitting-out players
+        presentPlayers.forEach(p => {
+          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
+            const onCourt = courtStates.some(c => {
+              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
+              const m = c.currentMatch;
+              if (m.gameFormat === 'singles') {
+                return m.player1?.id === p.id || m.player2?.id === p.id;
+              } else {
+                return m.team1?.some(player => player.id === p.id) ||
+                       m.team2?.some(player => player.id === p.id);
+              }
+            });
+
+            if (!onCourt) {
+              updated[p.id] = {
+                ...updated[p.id],
+                roundsSatOut: updated[p.id].roundsSatOut + 1
+              };
+            }
+          }
+        });
+
               lastPlayedRound: currentRound,
               totalPlayMinutes: (updated[p.id].totalPlayMinutes || 0) + playTime
             };
@@ -2392,13 +2576,6 @@ const PickleballTournamentManager = () => {
         return updated;
       });
     }
-
-    // Free up the court
-    setCourtStates(prev => prev.map(c =>
-      c.courtNumber === courtNumber
-        ? { ...c, status: 'ready', currentMatch: null }
-        : c
-    ));
   };
 
   const updateCourtStatus = (courtNumber, status) => {
@@ -2426,6 +2603,31 @@ const PickleballTournamentManager = () => {
         newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, matchFormat);
       }
     } else if (tournamentType === 'king_of_court') {
+      if (presentPlayers.length < 4) return alert('Need at least 4 present players');
+
+      // Check if all courts are ready
+      const allCourtsReady = courtStates.every(c => c.status === 'ready');
+      if (!allCourtsReady) {
+        return alert('Complete all current matches before generating the next King of Court round.');
+      }
+
+      newRound = generateKingOfCourtRound(presentPlayers, courts, kotStats, currentRound, rounds, separateBySkill);
+
+      // Assign King of Court matches to courts immediately
+      setCourtStates(prev => {
+        const updated = [...prev];
+        newRound.forEach((match, idx) => {
+          const courtIdx = updated.findIndex(c => c.courtNumber === match.court);
+          if (courtIdx !== -1) {
+            updated[courtIdx] = {
+              ...updated[courtIdx],
+              status: 'playing',
+              currentMatch: match
+            };
+          }
+        });
+        return updated;
+      });
       if (gameFormat === 'teamed_doubles') {
         if (teams.length < 2) return alert('Need at least 2 teams for King of Court');
         newRound = generateKingOfCourtTeamedRound(teams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
@@ -3321,8 +3523,8 @@ const PickleballTournamentManager = () => {
 
         {tab === 'schedule' && (
           <div className="space-y-3 sm:space-y-4">
-            {/* Court Flow Management - Only for Round Robin */}
-            {tournamentType === 'round_robin' && (
+            {/* Court Flow Management - For Round Robin and King of Court */}
+            {(tournamentType === 'round_robin' || tournamentType === 'king_of_court') && (
               <>
                 {/* Court Status Grid */}
                 <Card>
@@ -3388,12 +3590,31 @@ const PickleballTournamentManager = () => {
                             </>
                           )}
                           {court.status === 'cleaning' && (
-                            <Button
-                              className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
-                              onClick={() => updateCourtStatus(court.courtNumber, 'ready')}
-                            >
-                              Mark Ready
-                            </Button>
+                            <>
+                              {court.currentMatch && (
+                                <Button
+                                  className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 text-xs py-1"
+                                  onClick={() => {
+                                    completeCourtMatch(court.courtNumber);
+                                  }}
+                                >
+                                  Complete Match
+                                </Button>
+                              )}
+                              <Button
+                                className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
+                                onClick={() => {
+                                  // Clear match and mark ready
+                                  setCourtStates(prev => prev.map(c =>
+                                    c.courtNumber === court.courtNumber
+                                      ? { ...c, status: 'ready', currentMatch: null }
+                                      : c
+                                  ));
+                                }}
+                              >
+                                Clear & Mark Ready
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
