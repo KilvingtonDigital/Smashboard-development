@@ -1512,9 +1512,17 @@ const PickleballTournamentManager = () => {
           })
           .sort((a, b) => b.priority - a.priority);
       }
+    } else if (tournamentType === 'king_of_court') {
+      // King of Court: show available players sorted by KOT stats
+      return availablePlayers
+        .map(p => {
+          const stats = kotStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, totalPoints: 0 };
+          return { ...p, roundsPlayed: stats.roundsPlayed || 0, roundsSatOut: stats.roundsSatOut || 0 };
+        })
+        .sort((a, b) => b.roundsSatOut - a.roundsSatOut || a.roundsPlayed - b.roundsPlayed);
     }
     return [];
-  }, [tournamentType, gameFormat, availablePlayers, availableTeams, playerStats, teamStats]);
+  }, [tournamentType, gameFormat, availablePlayers, availableTeams, playerStats, teamStats, kotStats]);
 
   const addPlayer = () => {
     const name = form.name.trim();
@@ -1587,7 +1595,14 @@ const PickleballTournamentManager = () => {
         assignDoublesMatchToCourt(courtNumber);
       }
     } else if (tournamentType === 'king_of_court') {
-      alert('King of Court mode uses full round generation. Use "Generate Next Round" instead.');
+      // King of Court requires all courts to complete before generating next round
+      // Check if all courts are ready (meaning previous round is complete)
+      const allCourtsReady = courtStates.every(c => c.status === 'ready');
+      if (allCourtsReady) {
+        alert('Use "Generate Next Round" to start a new King of Court cycle. All courts must complete before shuffling players.');
+      } else {
+        alert('Complete all current matches before starting the next King of Court round.');
+      }
     }
   };
 
@@ -1804,18 +1819,31 @@ const PickleballTournamentManager = () => {
         : c
     ));
 
-    // Add match to current round in rounds array
-    setRounds(prev => {
-      const newRounds = [...prev];
-      if (newRounds.length === 0 || newRounds.length <= currentRound) {
-        // Create new round if needed
-        newRounds.push([match]);
-      } else {
-        // Add to current round
-        newRounds[currentRound] = [...newRounds[currentRound], match];
-      }
-      return newRounds;
-    });
+    // For King of Court, match is already in rounds array, so just update it in place
+    // For Round Robin, add match to current round
+    if (tournamentType === 'king_of_court') {
+      // Match is already in the rounds array, no need to add it again
+      // The match object reference in rounds is the same, so it's already updated with scores/winner
+      console.log('King of Court match completed - already in rounds array');
+    } else {
+      // Add match to current round in rounds array for Round Robin
+      setRounds(prev => {
+        const newRounds = [...prev];
+        if (newRounds.length === 0 || newRounds.length <= currentRound) {
+          // Create new round if needed
+          newRounds.push([match]);
+        } else {
+          // Add to current round
+          newRounds[currentRound] = [...newRounds[currentRound], match];
+        }
+        return newRounds;
+      });
+    }
+
+    // Skip stat updates for King of Court (handled separately in setWinner)
+    if (tournamentType === 'king_of_court') {
+      return;
+    }
 
     // Calculate who was sitting out BEFORE this match completed
     // (excluding the players in this match)
@@ -1828,7 +1856,7 @@ const PickleballTournamentManager = () => {
       match.team2?.forEach(p => playersInThisMatch.add(p.id));
     }
 
-    // Update player/team stats
+    // Update player/team stats (Round Robin only)
     if (match.gameFormat === 'singles') {
       setPlayerStats(prev => {
         const updated = { ...prev };
@@ -1972,7 +2000,30 @@ const PickleballTournamentManager = () => {
       }
     } else if (tournamentType === 'king_of_court') {
       if (presentPlayers.length < 4) return alert('Need at least 4 present players');
+
+      // Check if all courts are ready
+      const allCourtsReady = courtStates.every(c => c.status === 'ready');
+      if (!allCourtsReady) {
+        return alert('Complete all current matches before generating the next King of Court round.');
+      }
+
       newRound = generateKingOfCourtRound(presentPlayers, courts, kotStats, currentRound, rounds, separateBySkill);
+
+      // Assign King of Court matches to courts immediately
+      setCourtStates(prev => {
+        const updated = [...prev];
+        newRound.forEach((match, idx) => {
+          const courtIdx = updated.findIndex(c => c.courtNumber === match.court);
+          if (courtIdx !== -1) {
+            updated[courtIdx] = {
+              ...updated[courtIdx],
+              status: 'playing',
+              currentMatch: match
+            };
+          }
+        });
+        return updated;
+      });
     } else {
       return alert('Invalid tournament type');
     }
@@ -2694,8 +2745,8 @@ const PickleballTournamentManager = () => {
 
         {tab === 'schedule' && (
           <div className="space-y-3 sm:space-y-4">
-            {/* Court Flow Management - Only for Round Robin */}
-            {tournamentType === 'round_robin' && (
+            {/* Court Flow Management - For Round Robin and King of Court */}
+            {(tournamentType === 'round_robin' || tournamentType === 'king_of_court') && (
               <>
                 {/* Court Status Grid */}
                 <Card>
