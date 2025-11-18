@@ -33,15 +33,6 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
       const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
       const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
 
-      // For best of 3, use the match winner directly
-      let winner = null;
-      if (m.status === 'completed') {
-        if (m.winner) {
-          winner = m.winner; // Use pre-calculated winner
-        } else {
-          // Fallback for single match format
-          winner = s1 > s2 ? 'team1' : 'team2';
-        }
       // Handle both singles (player1/player2) and doubles (team1/team2) formats
       let team1Data, team2Data;
       if (m.gameFormat === 'singles') {
@@ -54,18 +45,22 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
         team2Data = m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })) || [];
       }
 
+      // For best of 3, use the match winner directly
+      let winner = null;
+      if (m.status === 'completed') {
+        if (m.winner) {
+          winner = m.winner; // Use pre-calculated winner
+        } else {
+          // Fallback for single match format
+          winner = s1 > s2 ? 'team1' : 'team2';
+        }
+      }
+
       matches.push({
         round: rIdx + 1,
         court: m.court,
         courtLevel: m.courtLevel || null,
         gameFormat: m.gameFormat || 'doubles',
-        matchFormat: m.matchFormat || 'single_match',
-        team1: m.team1?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-        team2: m.team2?.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-        player1: m.player1 ? { id: m.player1.id, name: m.player1.name, rating: m.player1.rating } : null,
-        player2: m.player2 ? { id: m.player2.id, name: m.player2.name, rating: m.player2.rating } : null,
-        score1: s1,
-        score2: s2,
         team1: team1Data,
         team2: team2Data,
         score1: s1,
@@ -77,12 +72,9 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
         game2Score2: m.game2Score2 || '',
         game3Score1: m.game3Score1 || '',
         game3Score2: m.game3Score2 || '',
-        status: m.status,
-        winner: winner,
-        pointsAwarded: m.pointsAwarded || null
         matchFormat: m.matchFormat || 'single_match',
         status: m.status,
-        winner: m.winner || null,
+        winner: winner,
         pointsAwarded: m.pointsAwarded || null,
         startTime: m.startTime || '',
         endTime: m.endTime || '',
@@ -107,7 +99,7 @@ const toCSV = (results) => {
     't2_p1','t2_p1_rating','t2_p2','t2_p2_rating',
     'match_format','games_won_t1','games_won_t2',
     'game1_t1','game1_t2','game2_t1','game2_t2','game3_t1','game3_t2',
-    'winner'
+    'winner','points_awarded','start_time','end_time','duration_minutes'
   ];
   const rows = results.matches.map((m) => {
     // Calculate games won for best of 3
@@ -132,40 +124,24 @@ const toCSV = (results) => {
 
     return [
       m.round, m.court, m.courtLevel || '', m.gameFormat || '',
-      m.gameFormat === 'singles' ? (m.player1?.name || '') : (m.team1?.[0]?.name || ''),
-      m.gameFormat === 'singles' ? (m.player1?.rating || '') : (m.team1?.[0]?.rating || ''),
-      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.name || ''),
-      m.gameFormat === 'singles' ? '' : (m.team1?.[1]?.rating || ''),
-      m.gameFormat === 'singles' ? (m.player2?.name || '') : (m.team2?.[0]?.name || ''),
-      m.gameFormat === 'singles' ? (m.player2?.rating || '') : (m.team2?.[0]?.rating || ''),
-      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.name || ''),
-      m.gameFormat === 'singles' ? '' : (m.team2?.[1]?.rating || ''),
+      m.team1?.[0]?.name || '',
+      m.team1?.[0]?.rating || '',
+      m.team1?.[1]?.name || '',
+      m.team1?.[1]?.rating || '',
+      m.team2?.[0]?.name || '',
+      m.team2?.[0]?.rating || '',
+      m.team2?.[1]?.name || '',
+      m.team2?.[1]?.rating || '',
       m.matchFormat || 'single_match',
       gamesWonT1, gamesWonT2,
       m.game1Score1 || '', m.game1Score2 || '',
       m.game2Score1 || '', m.game2Score2 || '',
       m.game3Score1 || '', m.game3Score2 || '',
-      m.winner || ''
+      m.winner || '',
+      m.pointsAwarded || '',
+      m.startTime || '', m.endTime || '', m.durationMinutes || ''
     ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
   });
-    'winner','points_awarded','start_time','end_time','duration_minutes'
-  ];
-  const rows = results.matches.map((m) =>
-    [
-      m.round, m.court, m.courtLevel || '', m.gameFormat,
-      m.team1?.[0]?.name || '', m.team1?.[0]?.rating || '',
-      m.team1?.[1]?.name || '', m.team1?.[1]?.rating || '',
-      m.team2?.[0]?.name || '', m.team2?.[0]?.rating || '',
-      m.team2?.[1]?.name || '', m.team2?.[1]?.rating || '',
-      m.matchFormat,
-      m.score1, m.score2,
-      m.game1Score1, m.game1Score2,
-      m.game2Score1, m.game2Score2,
-      m.game3Score1, m.game3Score2,
-      m.winner || '', m.pointsAwarded || '',
-      m.startTime || '', m.endTime || '', m.durationMinutes || ''
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
-  );
   return [header.join(','), ...rows].join('\n');
 };
 
