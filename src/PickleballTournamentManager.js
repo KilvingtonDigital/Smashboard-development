@@ -94,12 +94,12 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
 /* ---- CSV + download ---- */
 const toCSV = (results) => {
   const header = [
-    'round','court','court_level','game_format',
-    't1_p1','t1_p1_rating','t1_p2','t1_p2_rating',
-    't2_p1','t2_p1_rating','t2_p2','t2_p2_rating',
-    'match_format','games_won_t1','games_won_t2',
-    'game1_t1','game1_t2','game2_t1','game2_t2','game3_t1','game3_t2',
-    'winner','points_awarded','start_time','end_time','duration_minutes'
+    'round', 'court', 'court_level', 'game_format',
+    't1_p1', 't1_p1_rating', 't1_p2', 't1_p2_rating',
+    't2_p1', 't2_p1_rating', 't2_p2', 't2_p2_rating',
+    'match_format', 'games_won_t1', 'games_won_t2',
+    'game1_t1', 'game1_t2', 'game2_t1', 'game2_t2', 'game3_t1', 'game3_t2',
+    'winner', 'points_awarded', 'start_time', 'end_time', 'duration_minutes'
   ];
   const rows = results.matches.map((m) => {
     // Calculate games won for best of 3
@@ -339,10 +339,10 @@ const separatePlayersBySkill = (players, minPlayersPerLevel = 4) => {
 const canPlayTogether = (player1, player2) => {
   const level1 = getPlayerSkillLevel(player1.rating);
   const level2 = getPlayerSkillLevel(player2.rating);
-  
+
   const level1Index = Object.keys(SKILL_LEVELS).indexOf(level1.key);
   const level2Index = Object.keys(SKILL_LEVELS).indexOf(level2.key);
-  
+
   return Math.abs(level1Index - level2Index) <= 1;
 };
 
@@ -350,7 +350,7 @@ const canPlayTogether = (player1, player2) => {
 
 const initializePlayerStats = (playerStats, presentPlayers) => {
   const updatedStats = { ...playerStats };
-  
+
   presentPlayers.forEach(p => {
     if (!updatedStats[p.id]) {
       console.log(`NEW PLAYER ADDED: ${p.name} (${p.rating})`);
@@ -366,7 +366,7 @@ const initializePlayerStats = (playerStats, presentPlayers) => {
       updatedStats[p.id].player = p;
     }
   });
-  
+
   return updatedStats;
 };
 
@@ -401,61 +401,61 @@ const validateFairness = (playerStats, presentPlayers, currentRound) => {
     console.log('Max sat out:', maxSatOut, 'Min sat out:', minSatOut);
     console.log('Players sitting out most:', playStats.filter(s => s.satOut === maxSatOut).map(s => s.name));
   }
-  
+
   return difference <= 1;
 };
 
 const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRoundIndex, separateBySkill = true, matchFormat = 'single_match') => {
   console.log(`\n=== GENERATING ROUND ROBIN ROUND ${currentRoundIndex + 1} ===`);
   console.log(`Present players: ${presentPlayers.length}`);
-  
+
   const updatedStats = initializePlayerStats(playerStats, presentPlayers);
   let matches = [];
-  
+
   if (separateBySkill && presentPlayers.length >= 8) {
     const { groups: skillGroups, bumpedPlayers } = separatePlayersBySkill(presentPlayers, 4);
-    
+
     if (bumpedPlayers.length > 0) {
       console.log(`Players bumped: ${bumpedPlayers.map(p => `${p.name}`).join(', ')}`);
     }
-    
+
     let courtIndex = 1;
     const courtsPerGroup = Math.floor(courts / Math.max(1, skillGroups.length));
     let extraCourts = courts % Math.max(1, skillGroups.length);
-    
+
     skillGroups.forEach((skillGroup) => {
       if (skillGroup.players.length >= 4) {
         const groupCourts = courtsPerGroup + (extraCourts > 0 ? 1 : 0);
         if (extraCourts > 0) extraCourts--;
-        
+
         const groupMatches = generateMatchesForGroup(
-          skillGroup.players, 
-          updatedStats, 
-          groupCourts, 
-          courtIndex, 
-          currentRoundIndex, 
+          skillGroup.players,
+          updatedStats,
+          groupCourts,
+          courtIndex,
+          currentRoundIndex,
           skillGroup.label
         );
         matches.push(...groupMatches);
         courtIndex += groupMatches.length;
       }
     });
-    
+
     if (matches.length < courts) {
       console.log(`\nOnly using ${matches.length} of ${courts} courts. Checking for remaining players...`);
-      
+
       const playingIds = new Set();
       matches.forEach(match => {
         if (match.team1) match.team1.forEach(p => playingIds.add(p.id));
         if (match.team2) match.team2.forEach(p => playingIds.add(p.id));
       });
-      
+
       const remainingPlayers = presentPlayers.filter(p => !playingIds.has(p.id));
       const remainingCourts = courts - matches.length;
-      
+
       if (remainingPlayers.length >= 4 && remainingCourts > 0) {
         console.log(`✅ Filling ${remainingCourts} extra court(s) with ${remainingPlayers.length} remaining players (Mixed skill overflow)`);
-        
+
         const extraMatches = createBalancedMatches(
           remainingPlayers,
           updatedStats,
@@ -464,12 +464,12 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
           currentRoundIndex,
           'Mixed (Overflow)'
         );
-        
+
         matches.push(...extraMatches);
         console.log(`Added ${extraMatches.length} overflow match(es)`);
       }
     }
-    
+
   } else {
     matches = generateMatchesForGroup(presentPlayers, updatedStats, courts, 1, currentRoundIndex, 'Mixed');
   }
@@ -477,7 +477,7 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
   updatePlayerStatsForRound(updatedStats, presentPlayers, matches, currentRoundIndex);
   validateFairness(updatedStats, presentPlayers, currentRoundIndex);
   Object.assign(playerStats, updatedStats);
-  
+
   console.log(`\n=== ROUND ${currentRoundIndex + 1} SUMMARY ===`);
   console.log(`Courts requested: ${courts}`);
   console.log(`Courts used: ${matches.length}`);
@@ -488,19 +488,19 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
   if (matches.length < courts) {
     console.warn(`⚠️ WARNING: Only using ${matches.length} of ${courts} courts!`);
   }
-  
+
   return matches;
 };
 
 const generateMatchesForGroup = (groupPlayers, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType) => {
   console.log(`Generating ${groupType} matches for ${groupPlayers.length} players`);
-  
+
   const maxPlayersPerRound = maxCourts * 4;
   const playersThisRound = selectPlayersForRound(groupPlayers, playerStats, maxPlayersPerRound, roundIndex);
-  
+
   console.log(`${groupType} - Playing: ${playersThisRound.map(p => `${p.name}(${p.rating})`).join(', ')}`);
   console.log(`${groupType} - Sitting out: ${groupPlayers.filter(p => !playersThisRound.includes(p)).map(p => `${p.name}(${p.rating})`).join(', ')}`);
-  
+
   return createBalancedMatches(playersThisRound, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType);
 };
 
@@ -508,28 +508,28 @@ const selectPlayersForRound = (allPlayers, playerStats, maxPlayers, roundIdx) =>
   if (allPlayers.length <= maxPlayers) {
     return [...allPlayers];
   }
-  
+
   const playerPriority = allPlayers.map(p => {
     const stats = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1 };
     let priority = 0;
-    
+
     priority += stats.roundsSatOut * 500;
-    
+
     if (stats.lastPlayedRound >= 0) {
       priority += (roundIdx - stats.lastPlayedRound) * 200;
     } else {
       priority += 1000;
     }
-    
-    const avgRoundsPlayed = roundIdx > 0 ? 
+
+    const avgRoundsPlayed = roundIdx > 0 ?
       Object.values(playerStats).reduce((sum, s) => sum + (s.roundsPlayed || 0), 0) / Object.keys(playerStats).length : 0;
     priority += (avgRoundsPlayed - stats.roundsPlayed) * 100;
-    
+
     priority += Math.random() * 1;
-    
+
     return { player: p, priority, stats };
   });
-  
+
   return playerPriority
     .sort((a, b) => b.priority - a.priority)
     .slice(0, maxPlayers)
@@ -541,18 +541,18 @@ const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startin
   const usedPlayers = new Set();
   const availablePlayers = [...playersThisRound];
   const actualCourts = Math.min(maxCourts, Math.floor(availablePlayers.length / 4));
-  
+
   for (let courtIdx = 0; courtIdx < actualCourts; courtIdx++) {
     const remaining = availablePlayers.filter(p => !usedPlayers.has(p.id));
     if (remaining.length < 4) break;
-    
+
     const group = selectBestGroupOfFour(remaining, playerStats);
     if (!group || group.length < 4) break;
-    
+
     const teamSplit = findBestTeamSplit(group, playerStats);
-    
+
     group.forEach(p => usedPlayers.add(p.id));
-    
+
     matches.push({
       id: uid(),
       court: startingCourtIndex + courtIdx,
@@ -574,7 +574,7 @@ const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startin
       matchFormat: matchFormat
     });
   }
-  
+
   return matches;
 };
 
@@ -582,15 +582,15 @@ const selectBestGroupOfFour = (availablePlayers, playerStats) => {
   if (availablePlayers.length <= 4) {
     return availablePlayers;
   }
-  
+
   let bestGroup = null;
   let bestScore = Infinity;
   const attempts = Math.min(20, availablePlayers.length);
-  
+
   for (let attempt = 0; attempt < attempts; attempt++) {
     const group = [];
     const candidates = [...availablePlayers];
-    
+
     while (group.length < 4 && candidates.length > 0) {
       if (group.length === 0) {
         const idx = Math.floor(Math.random() * candidates.length);
@@ -598,31 +598,31 @@ const selectBestGroupOfFour = (availablePlayers, playerStats) => {
       } else {
         const scores = candidates.map(candidate => {
           let varietyScore = 0;
-          
+
           group.forEach(existing => {
             const stats = playerStats[existing.id] || { teammates: new Map() };
             const timesAsTeammates = stats.teammates.get(candidate.id) || 0;
             varietyScore += Math.max(0, 5 - timesAsTeammates);
           });
-          
+
           const skillCompatible = group.every(existing => canPlayTogether(existing, candidate));
           if (skillCompatible) varietyScore += 2;
-          
+
           varietyScore += Math.random() * 2;
-          
+
           return { player: candidate, score: varietyScore };
         });
-        
+
         scores.sort((a, b) => b.score - a.score);
         const topCandidates = Math.min(3, scores.length);
         const chosenIdx = Math.floor(Math.random() * topCandidates);
         const chosen = scores[chosenIdx].player;
-        
+
         group.push(chosen);
         candidates.splice(candidates.indexOf(chosen), 1);
       }
     }
-    
+
     if (group.length === 4) {
       const groupScore = evaluateGroupQuality(group, playerStats);
       if (groupScore < bestScore) {
@@ -631,17 +631,17 @@ const selectBestGroupOfFour = (availablePlayers, playerStats) => {
       }
     }
   }
-  
+
   return bestGroup || availablePlayers.slice(0, 4);
 };
 
 const evaluateGroupQuality = (group, playerStats) => {
   let penalty = 0;
-  
+
   const ratings = group.map(p => p.rating).sort((a, b) => b - a);
   const ratingSpread = ratings[0] - ratings[ratings.length - 1];
   penalty += ratingSpread * 2;
-  
+
   for (let i = 0; i < group.length; i++) {
     for (let j = i + 1; j < group.length; j++) {
       const stats = playerStats[group[i].id] || { teammates: new Map() };
@@ -649,7 +649,7 @@ const evaluateGroupQuality = (group, playerStats) => {
       penalty += timesAsTeammates * 10;
     }
   }
-  
+
   const skillLevels = group.map(p => getPlayerSkillLevel(p.rating).key);
   const uniqueSkillLevels = new Set(skillLevels).size;
   if (uniqueSkillLevels > 1) {
@@ -662,60 +662,60 @@ const evaluateGroupQuality = (group, playerStats) => {
       penalty += 5;
     }
   }
-  
+
   return penalty;
 };
 
 const findBestTeamSplit = (group, playerStats) => {
   const [p1, p2, p3, p4] = group;
-  
+
   const splitOptions = [
     { team1: [p1, p2], team2: [p3, p4] },
     { team1: [p1, p3], team2: [p2, p4] },
     { team1: [p1, p4], team2: [p2, p3] },
   ];
-  
+
   let bestSplit = splitOptions[0];
   let bestScore = Infinity;
-  
+
   splitOptions.forEach(split => {
     let score = 0;
-    
+
     const avg1 = avg(split.team1);
     const avg2 = avg(split.team2);
     score += Math.abs(avg1 - avg2) * 10;
-    
+
     const stats1 = playerStats[split.team1[0].id] || { teammates: new Map() };
     const stats2 = playerStats[split.team2[0].id] || { teammates: new Map() };
     const team1History = stats1.teammates.get(split.team1[1].id) || 0;
     const team2History = stats2.teammates.get(split.team2[1].id) || 0;
     score += (team1History + team2History) * 15;
-    
+
     const level1 = getPlayerSkillLevel(split.team1[0].rating);
     const level2 = getPlayerSkillLevel(split.team1[1].rating);
     const level3 = getPlayerSkillLevel(split.team2[0].rating);
     const level4 = getPlayerSkillLevel(split.team2[1].rating);
-    
+
     if (level1.key === level2.key) score -= 3;
     if (level3.key === level4.key) score -= 3;
-    
+
     if (score < bestScore) {
       bestScore = score;
       bestSplit = split;
     }
   });
-  
+
   return bestSplit;
 };
 
 const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundIdx) => {
   const playingIds = new Set();
-  
+
   matches.forEach(match => {
     if (match.team1) match.team1.forEach(p => playingIds.add(p.id));
     if (match.team2) match.team2.forEach(p => playingIds.add(p.id));
   });
-  
+
   presentPlayers.forEach(player => {
     const stats = playerStats[player.id];
     if (playingIds.has(player.id)) {
@@ -725,22 +725,22 @@ const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundId
       stats.roundsSatOut++;
     }
   });
-  
+
   matches.forEach(match => {
     const { team1, team2 } = match;
-    
+
     if (team1?.length === 2) {
       const [p1, p2] = team1;
       playerStats[p1.id].teammates.set(p2.id, (playerStats[p1.id].teammates.get(p2.id) || 0) + 1);
       playerStats[p2.id].teammates.set(p1.id, (playerStats[p2.id].teammates.get(p1.id) || 0) + 1);
     }
-    
+
     if (team2?.length === 2) {
       const [p1, p2] = team2;
       playerStats[p1.id].teammates.set(p2.id, (playerStats[p1.id].teammates.get(p2.id) || 0) + 1);
       playerStats[p2.id].teammates.set(p1.id, (playerStats[p2.id].teammates.get(p1.id) || 0) + 1);
     }
-    
+
     team1?.forEach(p1 => {
       team2?.forEach(p2 => {
         playerStats[p1.id].opponents.set(p2.id, (playerStats[p1.id].opponents.get(p2.id) || 0) + 1);
@@ -1034,7 +1034,7 @@ const updateTeamStatsForRound = (teamStats, allTeams, matches, roundIdx) => {
 
 const initializeKingOfCourtStats = (kotStats, presentPlayers, courts) => {
   const updatedStats = { ...kotStats };
-  
+
   presentPlayers.forEach(p => {
     if (!updatedStats[p.id]) {
       console.log(`NEW KOT PLAYER: ${p.name} - assigning to court`);
@@ -1052,7 +1052,7 @@ const initializeKingOfCourtStats = (kotStats, presentPlayers, courts) => {
       updatedStats[p.id].player = p;
     }
   });
-  
+
   return updatedStats;
 };
 
@@ -1064,23 +1064,23 @@ const getCourtPoints = (courtIndexInHierarchy, courtsInHierarchy) => {
 
 const generateKingOfCourtRound = (presentPlayers, courts, kotStats, currentRoundIndex, previousRounds, separateBySkill) => {
   console.log(`\n=== GENERATING KING OF COURT ROUND ${currentRoundIndex + 1} ===`);
-  
+
   const updatedStats = initializeKingOfCourtStats(kotStats, presentPlayers, courts);
   const matches = [];
-  
+
   if (separateBySkill && presentPlayers.length >= 8) {
     const { groups: skillGroups } = separatePlayersBySkill(presentPlayers, 4);
-    
+
     let globalCourtIndex = 1;
-    
+
     skillGroups.forEach(skillGroup => {
       if (skillGroup.players.length >= 4) {
         const groupCourts = Math.floor(skillGroup.players.length / 4);
         const actualCourts = Math.min(groupCourts, courts - globalCourtIndex + 1);
-        
+
         if (actualCourts > 0) {
           console.log(`\n${skillGroup.label}: ${skillGroup.players.length} players, ${actualCourts} courts (starting at Court ${globalCourtIndex})`);
-          
+
           const groupMatches = generateKOTMatchesForGroup(
             skillGroup.players,
             updatedStats,
@@ -1091,7 +1091,7 @@ const generateKingOfCourtRound = (presentPlayers, courts, kotStats, currentRound
             skillGroup.label,
             actualCourts  // ADDED: Pass the number of courts in THIS hierarchy
           );
-          
+
           matches.push(...groupMatches);
           globalCourtIndex += groupMatches.length;
         }
@@ -1110,13 +1110,13 @@ const generateKingOfCourtRound = (presentPlayers, courts, kotStats, currentRound
     );
     matches.push(...groupMatches);
   }
-  
+
   Object.assign(kotStats, updatedStats);
-  
+
   console.log(`\n=== KOT ROUND ${currentRoundIndex + 1} SUMMARY ===`);
   console.log(`Courts used: ${matches.length}`);
   console.log(`Players playing: ${matches.reduce((sum, m) => sum + 4, 0)}`);
-  
+
   return matches;
 };
 
@@ -1126,11 +1126,11 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
   const totalPlayers = groupPlayers.length;
   const actualCourts = Math.min(numCourts, Math.floor(totalPlayers / playersPerCourt));
   const maxPlayersThisRound = actualCourts * 4;
-  
+
   console.log(`${groupLabel}: courtsInHierarchy=${courtsInHierarchy}, actualCourts=${actualCourts}`);
-  
+
   let playersToAssign = [...groupPlayers];
-  
+
   // PRIORITY-BASED SELECTION: If we have more players than spots, select fairly
   if (totalPlayers > maxPlayersThisRound) {
     console.log(`${groupLabel}: Selecting ${maxPlayersThisRound} of ${totalPlayers} players using priority system`);
@@ -1138,9 +1138,9 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
     console.log(`${groupLabel} - Playing: ${playersToAssign.map(p => p.name).join(', ')}`);
     console.log(`${groupLabel} - Sitting out: ${groupPlayers.filter(p => !playersToAssign.includes(p)).map(p => p.name).join(', ')}`);
   }
-  
+
   let playerPool = [...playersToAssign];
-  
+
   if (roundIndex === 0) {
     console.log(`First KOT round for ${groupLabel} - random assignment`);
     playerPool = playerPool.sort(() => Math.random() - 0.5);
@@ -1148,15 +1148,15 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
     console.log(`KOT advancement for ${groupLabel} - sorting by previous round results`);
     playerPool = assignPlayersToCourts(playersToAssign, kotStats, previousRounds, roundIndex, actualCourts, startingCourtIndex);
   }
-  
+
   for (let courtIdx = 0; courtIdx < actualCourts; courtIdx++) {
     const courtNumber = startingCourtIndex + courtIdx;
     const playersForCourt = playerPool.slice(courtIdx * 4, (courtIdx + 1) * 4);
-    
+
     if (playersForCourt.length < 4) break;
-    
+
     const teamSplit = findBestTeamSplit(playersForCourt, {});
-    
+
     playersForCourt.forEach(p => {
       if (kotStats[p.id]) {
         kotStats[p.id].currentCourt = courtNumber;
@@ -1165,12 +1165,12 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
         kotStats[p.id].lastPlayedRound = roundIndex;
       }
     });
-    
+
     // FIXED: Calculate points based on position in THIS hierarchy
     const courtPoints = getCourtPoints(courtIdx, courtsInHierarchy);
-    
+
     console.log(`  Court ${courtNumber} (index ${courtIdx} in hierarchy): ${courtPoints} pts/win`);
-    
+
     matches.push({
       id: uid(),
       court: courtNumber,
@@ -1194,14 +1194,14 @@ const generateKOTMatchesForGroup = (groupPlayers, kotStats, numCourts, startingC
       matchFormat: 'single_match'
     });
   }
-  
+
   // Mark players who are sitting out
   groupPlayers.filter(p => !playersToAssign.includes(p)).forEach(p => {
     if (kotStats[p.id]) {
       kotStats[p.id].roundsSatOut++;
     }
   });
-  
+
   return matches;
 };
 
@@ -1210,17 +1210,17 @@ const selectPlayersForKOTRound = (allPlayers, kotStats, maxPlayers, roundIdx) =>
   if (allPlayers.length <= maxPlayers) {
     return [...allPlayers];
   }
-  
+
   console.log(`\n=== KOT PLAYER SELECTION (Round ${roundIdx + 1}) ===`);
-  
+
   const playerPriority = allPlayers.map(p => {
     const stats = kotStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1 };
     let priority = 0;
-    
+
     // HIGHEST priority for sitting out (same as Round Robin)
     priority += stats.roundsSatOut * 500;
     console.log(`${p.name}: sat out ${stats.roundsSatOut} rounds (+${stats.roundsSatOut * 500})`);
-    
+
     // Rounds since last played
     if (stats.lastPlayedRound >= 0) {
       const roundsSince = roundIdx - stats.lastPlayedRound;
@@ -1232,50 +1232,50 @@ const selectPlayersForKOTRound = (allPlayers, kotStats, maxPlayers, roundIdx) =>
       priority += 1000; // Never played
       console.log(`  └─ Never played (+1000)`);
     }
-    
+
     // Catch-up factor
-    const avgRoundsPlayed = roundIdx > 0 ? 
+    const avgRoundsPlayed = roundIdx > 0 ?
       Object.values(kotStats).reduce((sum, s) => sum + (s.roundsPlayed || 0), 0) / Object.keys(kotStats).length : 0;
     const catchup = (avgRoundsPlayed - stats.roundsPlayed) * 100;
     if (catchup > 0) {
       priority += catchup;
       console.log(`  └─ Catch-up factor (+${catchup.toFixed(0)})`);
     }
-    
+
     // Small random factor for tiebreaking
     priority += Math.random() * 1;
-    
+
     console.log(`  TOTAL PRIORITY: ${priority.toFixed(2)}`);
-    
+
     return { player: p, priority, stats };
   });
-  
+
   // Sort by priority (highest first) and take top players
   const selected = playerPriority
     .sort((a, b) => b.priority - a.priority)
     .slice(0, maxPlayers)
     .map(item => item.player);
-  
+
   console.log(`\nSelected top ${maxPlayers} players by priority`);
-  
+
   return selected;
 };
 
 const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundIndex, numCourts, startingCourtIndex) => {
   if (previousRounds.length === 0) return groupPlayers;
-  
+
   const lastRound = previousRounds[previousRounds.length - 1];
   const playerResults = [];
-  
+
   groupPlayers.forEach(player => {
     let won = false;
     let lastCourt = null;
-    
+
     lastRound.forEach(match => {
       if (match.status === 'completed') {
         const inTeam1 = match.team1?.some(p => p.id === player.id);
         const inTeam2 = match.team2?.some(p => p.id === player.id);
-        
+
         if (inTeam1 || inTeam2) {
           lastCourt = match.court;
           if ((inTeam1 && match.winner === 'team1') || (inTeam2 && match.winner === 'team2')) {
@@ -1284,9 +1284,9 @@ const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundInde
         }
       }
     });
-    
+
     const stats = kotStats[player.id] || { totalPoints: 0, currentCourt: null };
-    
+
     playerResults.push({
       player,
       won,
@@ -1294,7 +1294,7 @@ const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundInde
       totalPoints: stats.totalPoints || 0
     });
   });
-  
+
   playerResults.sort((a, b) => {
     if (a.lastCourt !== b.lastCourt) {
       return a.lastCourt - b.lastCourt;
@@ -1304,7 +1304,7 @@ const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundInde
     }
     return b.totalPoints - a.totalPoints;
   });
-  
+
   const sortedPlayers = [];
 
   for (let courtIdx = 0; courtIdx < numCourts; courtIdx++) {
@@ -1370,10 +1370,10 @@ const assignPlayersToCourts = (groupPlayers, kotStats, previousRounds, roundInde
 
     sortedPlayers.push(...courtPlayers.slice(0, 4));
   }
-  
+
   const remaining = groupPlayers.filter(p => !sortedPlayers.includes(p));
   sortedPlayers.push(...remaining);
-  
+
   return sortedPlayers;
 };
 
@@ -1502,43 +1502,68 @@ const assignTeamsToCourts = (groupTeams, kotTeamStats, previousRounds, roundInde
   });
 
   const sortedTeams = [];
-  const assignedTeamIds = new Set(); // Track which teams have been assigned
 
   for (let courtIdx = 0; courtIdx < numCourts; courtIdx++) {
     const courtNumber = startingCourtIndex + courtIdx;
+    let courtTeams = [];
 
-    // Get winners from this court who haven't been assigned yet
+    // Filter results for key groups
+    // 1. Winners from THIS court
     const winnersFromThisCourt = teamResults.filter(tr =>
-      tr.lastCourt === courtNumber && tr.won && !assignedTeamIds.has(tr.team.id)
+      tr.lastCourt === courtNumber && tr.won
     ).map(tr => tr.team);
 
-    // Get top winner from court below (only for non-bottom courts)
+    // 2. Winners from BELOW court (Move Up) - except for bottom court
     const winnersFromBelowCourt = courtIdx < numCourts - 1 ?
       teamResults.filter(tr =>
-        tr.lastCourt === courtNumber + 1 && tr.won && !assignedTeamIds.has(tr.team.id)
-      ).map(tr => tr.team).slice(0, 1) : []; // Only 1 team moves up
+        tr.lastCourt === courtNumber + 1 && tr.won
+      ).map(tr => tr.team).slice(0, 1) : []; // Top 1 winner moves up
 
-    // Get losers from this court who haven't been assigned yet
+    // 3. Losers from ABOVE court (Move Down) - except for top/King court
+    const losersFromAboveCourt = courtIdx > 0 ?
+      teamResults.filter(tr =>
+        tr.lastCourt === courtNumber - 1 && !tr.won
+      ).map(tr => tr.team).slice(0, 1) : []; // Top 1 loser moves down
+
+    // 4. Losers from THIS court
     const losersFromThisCourt = teamResults.filter(tr =>
-      tr.lastCourt === courtNumber && !tr.won && !assignedTeamIds.has(tr.team.id)
+      tr.lastCourt === courtNumber && !tr.won
     ).map(tr => tr.team);
 
-    let courtTeams = [...winnersFromThisCourt];
 
-    // King Court (top court) gets the top winner from court below
-    if (courtIdx === 0) {
-      courtTeams.push(...winnersFromBelowCourt);
+    // Helper to safely add teams if not already assigned
+    const addTeamsIfNotAssigned = (teamsToAdd) => {
+      teamsToAdd.forEach(team => {
+        const isAlreadySorted = sortedTeams.some(t => t.id === team.id);
+        const isInCurrentBatch = courtTeams.some(t => t.id === team.id);
+
+        if (!isAlreadySorted && !isInCurrentBatch) {
+          courtTeams.push(team);
+        }
+      });
+    };
+
+    // --- APPLY PRIORITY ORDER (Standard KOT Logic) ---
+    // 1. Winners from this court stay (unless they already moved up in previous loop)
+    addTeamsIfNotAssigned(winnersFromThisCourt);
+
+    // 2. Losers from above move down (Taking the spot of specific losers)
+    if (courtIdx > 0) {
+      addTeamsIfNotAssigned(losersFromAboveCourt);
     }
 
-    // Fill remaining spots with losers
-    while (courtTeams.length < 2 && losersFromThisCourt.length > 0) {
-      courtTeams.push(losersFromThisCourt.shift());
+    // 3. Winners from below move up (Taking the "Challenger" spot)
+    if (courtIdx < numCourts - 1) {
+      addTeamsIfNotAssigned(winnersFromBelowCourt);
     }
 
-    // If still need more teams, get any unassigned teams
+    // 4. Fill remaining spots with losers from this court
+    addTeamsIfNotAssigned(losersFromThisCourt);
+
+    // 5. Emergency fill from pool if still < 2 teams
     if (courtTeams.length < 2) {
       const available = teamResults
-        .filter(tr => !assignedTeamIds.has(tr.team.id))
+        .filter(tr => !sortedTeams.some(t => t.id === tr.team.id) && !courtTeams.some(t => t.id === tr.team.id))
         .map(tr => tr.team);
 
       while (courtTeams.length < 2 && available.length > 0) {
@@ -1546,14 +1571,14 @@ const assignTeamsToCourts = (groupTeams, kotTeamStats, previousRounds, roundInde
       }
     }
 
-    // Mark these teams as assigned
+    // Lock in the 2 teams for this court
     courtTeams.slice(0, 2).forEach(team => {
-      assignedTeamIds.add(team.id);
       sortedTeams.push(team);
     });
   }
 
-  const remaining = groupTeams.filter(t => !assignedTeamIds.has(t.id));
+  // Add any remaining unassigned teams
+  const remaining = groupTeams.filter(t => !sortedTeams.some(st => st.id === t.id));
   sortedTeams.push(...remaining);
 
   return sortedTeams;
@@ -1835,7 +1860,7 @@ const PickleballTournamentManager = () => {
   useEffect(() => {
     const savedRoster = localStorage.getItem('pb_roster');
     if (savedRoster) {
-      try { setPlayers(JSON.parse(savedRoster)); } catch {}
+      try { setPlayers(JSON.parse(savedRoster)); } catch { }
     }
   }, []);
 
@@ -1960,7 +1985,7 @@ const PickleballTournamentManager = () => {
     const rating = Number(form.rating);
     if (!name) return alert('Name is required');
     if (Number.isNaN(rating) || rating < 2.0 || rating > 5.5) return alert('Enter DUPR 2.0 – 5.5');
-    
+
     setPlayers((prev) => [...prev, { id: uid(), name, rating, gender: form.gender, present: true }]);
     setForm({ name: '', rating: '', gender: 'male' });
 
@@ -2000,8 +2025,8 @@ const PickleballTournamentManager = () => {
     const normalizeGender = (g) => {
       if (!g) return 'male';
       const s = g.toString().trim().toLowerCase();
-      if (['f','female','woman','w'].includes(s)) return 'female';
-      if (['m','male','man','men'].includes(s)) return 'male';
+      if (['f', 'female', 'woman', 'w'].includes(s)) return 'female';
+      if (['m', 'male', 'man', 'men'].includes(s)) return 'male';
       return 'male';
     };
     for (const line of lines) {
@@ -2423,7 +2448,7 @@ const PickleballTournamentManager = () => {
                 return m.player1?.id === p.id || m.player2?.id === p.id;
               } else {
                 return m.team1?.some(player => player.id === p.id) ||
-                       m.team2?.some(player => player.id === p.id);
+                  m.team2?.some(player => player.id === p.id);
               }
             });
 
@@ -2536,7 +2561,7 @@ const PickleballTournamentManager = () => {
                 return m.player1?.id === p.id || m.player2?.id === p.id;
               } else {
                 return m.team1?.some(player => player.id === p.id) ||
-                       m.team2?.some(player => player.id === p.id);
+                  m.team2?.some(player => player.id === p.id);
               }
             });
 
@@ -2664,11 +2689,11 @@ const PickleballTournamentManager = () => {
       prev.map((round, i) =>
         i === rIdx
           ? round.map((m, j) => {
-              if (j !== mIdx) return m;
-              if (raw === '') return { ...m, [which]: '' };
-              const n = Number(raw);
-              return { ...m, [which]: Number.isNaN(n) ? '' : Math.max(0, n) };
-            })
+            if (j !== mIdx) return m;
+            if (raw === '') return { ...m, [which]: '' };
+            const n = Number(raw);
+            return { ...m, [which]: Number.isNaN(n) ? '' : Math.max(0, n) };
+          })
           : round
       )
     );
@@ -2749,10 +2774,10 @@ const PickleballTournamentManager = () => {
     if (tournamentType === 'king_of_court' && m.pointsForWin) {
       if (m.gameFormat === 'teamed_doubles') {
         updateKOTTeamStats(kotTeamStats, m);
-        setKotTeamStats({...kotTeamStats});
+        setKotTeamStats({ ...kotTeamStats });
       } else {
         updateKOTStats(kotStats, m);
-        setKotStats({...kotStats});
+        setKotStats({ ...kotStats });
       }
     }
   };
@@ -2976,11 +3001,10 @@ const PickleballTournamentManager = () => {
               <button
                 key={k}
                 onClick={() => setTab(k)}
-                className={`snap-start rounded-t-xl px-3 sm:px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                  tab === k
+                className={`snap-start rounded-t-xl px-3 sm:px-4 py-2 text-sm font-medium whitespace-nowrap ${tab === k
                     ? 'bg-brand-white text-brand-primary border-x border-t border-brand-gray'
                     : 'text-brand-primary/70 hover:text-brand-primary'
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -3106,20 +3130,20 @@ const PickleballTournamentManager = () => {
                   </Button>
                 )}
               </div>
-              
+
               {rounds.length > 0 && tournamentType === 'round_robin' && (
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="text-xs text-blue-800">
-                    ✓ <strong>Late arrivals/departures handled automatically</strong><br/>
+                    ✓ <strong>Late arrivals/departures handled automatically</strong><br />
                     Simply check/uncheck "Present" and generate the next round!
                   </div>
                 </div>
               )}
-              
+
               {rounds.length > 0 && tournamentType === 'king_of_court' && (
                 <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                   <div className="text-xs text-purple-800">
-                    👑 <strong>King of Court Active!</strong><br/>
+                    👑 <strong>King of Court Active!</strong><br />
                     Winners advance up courts, losers drop down. Court 1 = King Court!
                   </div>
                 </div>
@@ -3208,7 +3232,7 @@ const PickleballTournamentManager = () => {
               <h3 className="text-sm font-semibold text-brand-primary">Roster ({players.length})</h3>
               <div className="text-xs text-brand-primary/70">Present: {presentPlayers.length}</div>
             </div>
-            
+
             {rounds.length > 0 && (
               <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="text-sm text-yellow-800">
@@ -3387,13 +3411,12 @@ const PickleballTournamentManager = () => {
                         <td className="p-2">{team.player1.name} ({team.player1.rating})</td>
                         <td className="p-2">{team.player2.name} ({team.player2.rating})</td>
                         <td className="p-2">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            team.gender === 'male_male' ? 'bg-blue-100 text-blue-700' :
-                            team.gender === 'female_female' ? 'bg-pink-100 text-pink-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded ${team.gender === 'male_male' ? 'bg-blue-100 text-blue-700' :
+                              team.gender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                                'bg-purple-100 text-purple-700'
+                            }`}>
                             {team.gender === 'male_male' ? 'M/M' :
-                             team.gender === 'female_female' ? 'F/F' : 'Mixed'}
+                              team.gender === 'female_female' ? 'F/F' : 'Mixed'}
                           </span>
                         </td>
                         <td className="p-2">{team.avgRating.toFixed(2)}</td>
@@ -3469,9 +3492,8 @@ const PickleballTournamentManager = () => {
                             <td className="p-2">{p.court1Wins}</td>
                             <td className="p-2">
                               {p.currentCourt ? (
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                  p.currentCourt === 1 ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-gray-100 text-gray-700'
-                                }`}>
+                                <span className={`text-xs px-2 py-1 rounded ${p.currentCourt === 1 ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-gray-100 text-gray-700'
+                                  }`}>
                                   {p.currentCourt === 1 ? '👑 Court 1' : `Court ${p.currentCourt}`}
                                 </span>
                               ) : (
@@ -3509,18 +3531,16 @@ const PickleballTournamentManager = () => {
                   <h3 className="text-sm font-semibold text-brand-primary mb-3">Court Status</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     {courtStates.map(court => (
-                      <div key={court.courtNumber} className={`p-3 rounded-lg border-2 ${
-                        court.status === 'playing' ? 'border-green-500 bg-green-50' :
-                        court.status === 'cleaning' ? 'border-yellow-500 bg-yellow-50' :
-                        'border-gray-300 bg-gray-50'
-                      }`}>
+                      <div key={court.courtNumber} className={`p-3 rounded-lg border-2 ${court.status === 'playing' ? 'border-green-500 bg-green-50' :
+                          court.status === 'cleaning' ? 'border-yellow-500 bg-yellow-50' :
+                            'border-gray-300 bg-gray-50'
+                        }`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-brand-primary">Court {court.courtNumber}</span>
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            court.status === 'playing' ? 'bg-green-200 text-green-800' :
-                            court.status === 'cleaning' ? 'bg-yellow-200 text-yellow-800' :
-                            'bg-gray-200 text-gray-800'
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded ${court.status === 'playing' ? 'bg-green-200 text-green-800' :
+                              court.status === 'cleaning' ? 'bg-yellow-200 text-yellow-800' :
+                                'bg-gray-200 text-gray-800'
+                            }`}>
                             {court.status.toUpperCase()}
                           </span>
                         </div>
@@ -3696,33 +3716,30 @@ const PickleballTournamentManager = () => {
                       <div className="absolute right-3 top-3 flex items-center gap-2 text-[11px] sm:text-xs text-brand-primary/60 flex-wrap justify-end">
                         <span>Diff {m.diff?.toFixed?.(2) ?? '--'}</span>
                         {m.teamGender && (
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                            m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
-                            m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
+                              m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                                'bg-purple-100 text-purple-700'
+                            }`}>
                             {m.teamGender === 'male_male' ? 'M/M' :
-                             m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
+                              m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
                           </span>
                         )}
                         {m.courtLevel && (
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                            m.courtLevel === 'KING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${m.courtLevel === 'KING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
+                            }`}>
                             {m.courtLevel === 'KING' ? '👑 KING' : m.courtLevel}
                           </span>
                         )}
                         {m.skillLevel && !m.courtLevel && (
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            m.skillLevel === 'Beginner' ? 'bg-red-100 text-red-700' :
-                            m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
-                            m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                            m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
-                            m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
-                            m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
-                            m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-xs ${m.skillLevel === 'Beginner' ? 'bg-red-100 text-red-700' :
+                              m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
+                                m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
+                                  m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
+                                    m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
+                                      m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
+                                        m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
+                                          'bg-gray-100 text-gray-700'
+                            }`}>
                             {m.skillLevel}
                           </span>
                         )}
