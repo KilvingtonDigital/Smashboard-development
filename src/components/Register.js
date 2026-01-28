@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Register = ({ onSwitchToLogin }) => {
-  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,7 +28,7 @@ const Register = ({ onSwitchToLogin }) => {
 
     setLoading(true);
 
-    const result = await register(username, email, password);
+    const result = await register(firstName, lastName, email, password);
 
     if (!result.success) {
       setError(result.error);
@@ -56,20 +57,35 @@ const Register = ({ onSwitchToLogin }) => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-gray text-sm font-medium mb-2">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                minLength={3}
-                className="w-full px-4 py-2 bg-black border border-gray rounded focus:outline-none focus:border-lime text-white"
-                placeholder="johndoe"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="firstName" className="block text-gray text-sm font-medium mb-2">
+                  First Name
+                </label>
+                <input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  className="w-full px-4 py-2 bg-black border border-gray rounded focus:outline-none focus:border-lime text-white"
+                  placeholder="John"
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-gray text-sm font-medium mb-2">
+                  Last Name
+                </label>
+                <input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  className="w-full px-4 py-2 bg-black border border-gray rounded focus:outline-none focus:border-lime text-white"
+                  placeholder="Doe"
+                />
+              </div>
             </div>
 
             <div>

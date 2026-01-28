@@ -20,10 +20,10 @@ exports.register = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { username, email, password } = req.body;
+    const { firstName, lastName, email, password } = req.body;
 
     // Create user
-    const user = await User.create({ username, email, password });
+    const user = await User.create({ firstName, lastName, email, password });
 
     // Generate token
     const token = generateToken(user);
@@ -32,6 +32,8 @@ exports.register = async (req, res) => {
       message: 'User registered successfully',
       user: {
         id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
         username: user.username,
         email: user.email
       },

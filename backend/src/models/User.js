@@ -5,16 +5,22 @@ const SALT_ROUNDS = 10;
 
 class User {
   // Create a new user
-  static async create({ username, email, password }) {
+  static async create({ firstName, lastName, email, password }) {
     try {
       // Hash password
       const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
+      // Generate a unique username based on name to satisfy DB constraint
+      // Pattern: firstname_lastname_randomString
+      const baseHandle = `${firstName.toLowerCase().replace(/\s/g, '')}_${lastName.toLowerCase().replace(/\s/g, '')}`;
+      const randomSuffix = Math.random().toString(36).substring(2, 7);
+      const username = `${baseHandle}_${randomSuffix}`;
+
       const result = await pool.query(
-        `INSERT INTO users (username, email, password_hash)
-         VALUES ($1, $2, $3)
-         RETURNING id, username, email, created_at`,
-        [username, email, password_hash]
+        `INSERT INTO users (username, email, password_hash, first_name, last_name)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, username, email, first_name, last_name, created_at`,
+        [username, email, password_hash, firstName, lastName]
       );
 
       return result.rows[0];
@@ -24,7 +30,9 @@ class User {
           throw new Error('Email already exists');
         }
         if (error.constraint === 'users_username_key') {
-          throw new Error('Username already exists');
+          // This should handle rare collision of generated username by retrying? 
+          // For simplicity, we just throw, but in production we'd loop.
+          throw new Error('Username generation collision, please try again');
         }
       }
       throw error;
