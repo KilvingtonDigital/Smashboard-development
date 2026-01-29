@@ -43,6 +43,8 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (firstName, lastName, email, password) => {
     try {
+      console.log('Sending registration request:', { firstName, lastName, email });
+
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
@@ -54,7 +56,13 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
+        // Handle express-validator array of errors
+        if (data.errors && Array.isArray(data.errors)) {
+          const messages = data.errors.map(err => err.msg).join(', ');
+          throw new Error(messages);
+        }
+        // Handle standard error message
+        throw new Error(data.error || `Registration failed: ${response.status} ${response.statusText}`);
       }
 
       // Save token and user
@@ -64,6 +72,7 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true };
     } catch (error) {
+      console.error('Registration Exception:', error);
       return { success: false, error: error.message };
     }
   };
