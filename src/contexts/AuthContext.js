@@ -106,6 +106,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('pb_roster');
+    localStorage.removeItem('pb_session');
+    localStorage.removeItem('migration_completed');
     setToken(null);
     setUser(null);
   };

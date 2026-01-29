@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import InstallPrompt from './InstallPrompt';
+import { useAuth } from './contexts/AuthContext';
+import { useAPI } from './hooks/useAPI';
 
 // Version 3.2 - King of Court implementation + Round Robin
 
@@ -1828,6 +1830,8 @@ const generateBalancedKOTTeams = (players) => {
 
 /* =====================  MAIN COMPONENT  ===================== */
 const PickleballTournamentManager = () => {
+  const { user } = useAuth();
+  const api = useAPI();
   const [players, setPlayers] = useState([]);
   const [form, setForm] = useState({ name: '', rating: '', gender: 'male' });
   const [bulkText, setBulkText] = useState('');
@@ -1858,11 +1862,30 @@ const PickleballTournamentManager = () => {
   const [locked, setLocked] = useState(false);
 
   useEffect(() => {
-    const savedRoster = localStorage.getItem('pb_roster');
-    if (savedRoster) {
-      try { setPlayers(JSON.parse(savedRoster)); } catch { }
-    }
-  }, []);
+    const fetchRoster = async () => {
+      if (user) {
+        try {
+          const { success, data } = await api.players.getAll();
+          if (success && data.players) {
+            // Map DB fields to frontend format
+            const dbPlayers = data.players.map(p => ({
+              id: p.id,
+              name: p.player_name,
+              rating: Number(p.dupr_rating) || 2.5,
+              gender: p.gender || 'male',
+              present: true
+            }));
+            setPlayers(dbPlayers);
+            // Mark migration as complete since we are using DB
+            localStorage.setItem('migration_completed', 'true');
+          }
+        } catch (error) {
+          console.error("Failed to fetch players", error);
+        }
+      }
+    };
+    fetchRoster();
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('pb_roster', JSON.stringify(players));
@@ -1980,20 +2003,43 @@ const PickleballTournamentManager = () => {
     return [];
   }, [tournamentType, gameFormat, availablePlayers, availableTeams, playerStats, teamStats, kotStats]);
 
-  const addPlayer = () => {
+  const addPlayer = async () => {
     const name = form.name.trim();
     const rating = Number(form.rating);
     if (!name) return alert('Name is required');
     if (Number.isNaN(rating) || rating < 2.0 || rating > 5.5) return alert('Enter DUPR 2.0 – 5.5');
 
-    setPlayers((prev) => [...prev, { id: uid(), name, rating, gender: form.gender, present: true }]);
-    setForm({ name: '', rating: '', gender: 'male' });
+    try {
+      // Call API
+      const { success, data, error } = await api.players.create({
+        player_name: name,
+        dupr_rating: rating,
+        gender: form.gender
+      });
 
-    setAddNote(`Added ${name} – check Roster`);
-    setTimeout(() => setAddNote(null), 2000);
+      if (success && data.player) {
+        const newPlayer = {
+          id: data.player.id,
+          name: data.player.player_name,
+          rating: Number(data.player.dupr_rating),
+          gender: data.player.gender,
+          present: true
+        };
+        setPlayers((prev) => [...prev, newPlayer]);
+        setForm({ name: '', rating: '', gender: 'male' });
+
+        setAddNote(`Added ${name} – check Roster`);
+        setTimeout(() => setAddNote(null), 2000);
+      } else {
+        alert(`Failed to add player: ${error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error adding player');
+    }
   };
 
-  const removePlayer = (id) => {
+  const removePlayer = async (id) => {
     const player = players.find(p => p.id === id);
     if (rounds.length > 0 && player) {
       const confirmRemove = window.confirm(
@@ -2001,7 +2047,19 @@ const PickleballTournamentManager = () => {
       );
       if (!confirmRemove) return;
     }
-    setPlayers((prev) => prev.filter((p) => p.id !== id));
+
+    // Call API
+    try {
+      const { success, error } = await api.players.delete(id);
+      if (success) {
+        setPlayers((prev) => prev.filter((p) => p.id !== id));
+      } else {
+        alert(`Failed to delete player: ${error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting player');
+    }
   };
 
   const togglePresent = (id) => {
@@ -3002,8 +3060,8 @@ const PickleballTournamentManager = () => {
                 key={k}
                 onClick={() => setTab(k)}
                 className={`snap-start rounded-t-xl px-3 sm:px-4 py-2 text-sm font-medium whitespace-nowrap ${tab === k
-                    ? 'bg-brand-white text-brand-primary border-x border-t border-brand-gray'
-                    : 'text-brand-primary/70 hover:text-brand-primary'
+                  ? 'bg-brand-white text-brand-primary border-x border-t border-brand-gray'
+                  : 'text-brand-primary/70 hover:text-brand-primary'
                   }`}
               >
                 {label}
@@ -3257,7 +3315,20 @@ const PickleballTournamentManager = () => {
                     <tr key={p.id} className="border-t border-brand-gray/60">
                       <td className="p-2"><input type="checkbox" checked={!!p.present} onChange={() => togglePresent(p.id)} /></td>
                       <td className="p-2">
-                        <input value={p.name} onChange={(e) => updatePlayerField(p.id, 'name', e.target.value)} className="w-full min-w-[120px] rounded border border-brand-gray px-2 py-1" />
+                        <input
+                          value={p.name}
+                          onChange={(e) => updatePlayerField(p.id, 'name', e.target.value)}
+                          onBlur={() => {
+                            if (user) {
+                              api.players.update(p.id, {
+                                player_name: p.name,
+                                dupr_rating: p.rating,
+                                gender: p.gender
+                              }).catch(console.error);
+                            }
+                          }}
+                          className="w-full min-w-[120px] rounded border border-brand-gray px-2 py-1"
+                        />
                       </td>
                       <td className="p-2">
                         <input
@@ -3267,6 +3338,15 @@ const PickleballTournamentManager = () => {
                           max="5.5"
                           value={p.rating}
                           onChange={(e) => updatePlayerField(p.id, 'rating', Number(e.target.value))}
+                          onBlur={() => {
+                            if (user) {
+                              api.players.update(p.id, {
+                                player_name: p.name,
+                                dupr_rating: p.rating,
+                                gender: p.gender
+                              }).catch(console.error);
+                            }
+                          }}
                           className="w-16 rounded border border-brand-gray px-2 py-1"
                         />
                       </td>
@@ -3412,8 +3492,8 @@ const PickleballTournamentManager = () => {
                         <td className="p-2">{team.player2.name} ({team.player2.rating})</td>
                         <td className="p-2">
                           <span className={`text-xs px-2 py-1 rounded ${team.gender === 'male_male' ? 'bg-blue-100 text-blue-700' :
-                              team.gender === 'female_female' ? 'bg-pink-100 text-pink-700' :
-                                'bg-purple-100 text-purple-700'
+                            team.gender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                              'bg-purple-100 text-purple-700'
                             }`}>
                             {team.gender === 'male_male' ? 'M/M' :
                               team.gender === 'female_female' ? 'F/F' : 'Mixed'}
@@ -3532,14 +3612,14 @@ const PickleballTournamentManager = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     {courtStates.map(court => (
                       <div key={court.courtNumber} className={`p-3 rounded-lg border-2 ${court.status === 'playing' ? 'border-green-500 bg-green-50' :
-                          court.status === 'cleaning' ? 'border-yellow-500 bg-yellow-50' :
-                            'border-gray-300 bg-gray-50'
+                        court.status === 'cleaning' ? 'border-yellow-500 bg-yellow-50' :
+                          'border-gray-300 bg-gray-50'
                         }`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-brand-primary">Court {court.courtNumber}</span>
                           <span className={`text-xs px-2 py-1 rounded ${court.status === 'playing' ? 'bg-green-200 text-green-800' :
-                              court.status === 'cleaning' ? 'bg-yellow-200 text-yellow-800' :
-                                'bg-gray-200 text-gray-800'
+                            court.status === 'cleaning' ? 'bg-yellow-200 text-yellow-800' :
+                              'bg-gray-200 text-gray-800'
                             }`}>
                             {court.status.toUpperCase()}
                           </span>
@@ -3717,8 +3797,8 @@ const PickleballTournamentManager = () => {
                         <span>Diff {m.diff?.toFixed?.(2) ?? '--'}</span>
                         {m.teamGender && (
                           <span className={`px-2 py-0.5 rounded text-xs font-semibold ${m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
-                              m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
-                                'bg-purple-100 text-purple-700'
+                            m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                              'bg-purple-100 text-purple-700'
                             }`}>
                             {m.teamGender === 'male_male' ? 'M/M' :
                               m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
@@ -3732,13 +3812,13 @@ const PickleballTournamentManager = () => {
                         )}
                         {m.skillLevel && !m.courtLevel && (
                           <span className={`px-2 py-0.5 rounded text-xs ${m.skillLevel === 'Beginner' ? 'bg-red-100 text-red-700' :
-                              m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
-                                m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                                  m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
-                                    m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
-                                      m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
-                                        m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
-                                          'bg-gray-100 text-gray-700'
+                            m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
+                              m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
+                                m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
+                                  m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
+                                    m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
+                                      m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
+                                        'bg-gray-100 text-gray-700'
                             }`}>
                             {m.skillLevel}
                           </span>
