@@ -14,11 +14,22 @@ async function migrate() {
     await pool.query(schemaSQL);
 
     console.log('✅ Database migrations completed successfully!');
-    process.exit(0);
+    if (require.main === module) {
+      process.exit(0);
+    }
   } catch (error) {
     console.error('❌ Migration failed:', error);
-    process.exit(1);
+    if (require.main === module) {
+      process.exit(1);
+    } else {
+      // Throw error if running as a module so the caller knows
+      throw error;
+    }
   }
 }
 
-migrate();
+if (require.main === module) {
+  migrate();
+}
+
+module.exports = migrate;

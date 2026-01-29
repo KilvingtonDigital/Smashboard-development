@@ -7,6 +7,8 @@ const authRoutes = require('./routes/auth');
 const tournamentRoutes = require('./routes/tournaments');
 const playerRoutes = require('./routes/players');
 
+const migrate = require('./config/migrate');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -49,9 +51,21 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = async () => {
+  try {
+    // Run migrations on startup
+    await migrate();
+  } catch (error) {
+    console.error('Failed to run migrations on startup:', error);
+    // We continue starting the server so we can at least return 500s with logs
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+};
+
+startServer();
 
 module.exports = app;
