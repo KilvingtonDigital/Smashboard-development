@@ -39,6 +39,8 @@ const loginValidation = [
 // Public routes
 router.post('/register', registerValidation, authController.register);
 router.post('/login', loginValidation, authController.login);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password/:token', authController.resetPassword);
 
 // Protected routes
 router.get('/me', authMiddleware, authController.getCurrentUser);

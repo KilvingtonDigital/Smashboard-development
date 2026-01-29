@@ -90,6 +90,42 @@ class User {
   static async delete(id) {
     await pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
+
+  // Save reset token (hash it first if you prefer, usually tokens are hashed)
+  static async saveResetToken(userId, tokenHash, expiryDate) {
+    await pool.query(
+      `UPDATE users
+       SET reset_token_hash = $1,
+           reset_token_expiry = $2
+       WHERE id = $3`,
+      [tokenHash, expiryDate, userId]
+    );
+  }
+
+  // Find user by reset token (valid only)
+  static async findByResetToken(tokenHash) {
+    const result = await pool.query(
+      `SELECT * FROM users
+       WHERE reset_token_hash = $1
+       AND reset_token_expiry > NOW()`,
+      [tokenHash]
+    );
+    return result.rows[0];
+  }
+
+  // Update password and clear token
+  static async updatePassword(userId, newPassword) {
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           reset_token_hash = NULL,
+           reset_token_expiry = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [passwordHash, userId]
+    );
+  }
 }
 
 module.exports = User;

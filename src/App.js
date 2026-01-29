@@ -4,8 +4,19 @@ import PickleballTournamentManager from './PickleballTournamentManager';
 import AuthPage from './components/AuthPage';
 import MigrationPrompt from './components/MigrationPrompt';
 
+import ResetPassword from './components/ResetPassword';
+
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
+
+  // Check if we are on the reset password route
+  const path = window.location.pathname;
+  if (path.startsWith('/reset-password/')) {
+    const token = path.split('/reset-password/')[1];
+    if (token) {
+      return <ResetPassword token={token} onResetSuccess={() => window.location.href = '/'} />;
+    }
+  }
 
   if (loading) {
     return (

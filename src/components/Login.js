@@ -15,7 +15,7 @@ const EyeSlashIcon = () => (
   </svg>
 );
 
-const Login = ({ onSwitchToRegister }) => {
+const Login = ({ onSwitchToRegister, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -73,9 +73,18 @@ const Login = ({ onSwitchToRegister }) => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-gray text-sm font-medium mb-2">
-                Password
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label htmlFor="password" className="block text-gray text-sm font-medium">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  className="text-xs text-lime hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   id="password"
@@ -116,9 +125,9 @@ const Login = ({ onSwitchToRegister }) => {
               </button>
             </p>
           </div>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 };
 
