@@ -53,18 +53,33 @@ app.use((err, req, res, next) => {
 // Start server
 const startServer = async () => {
   try {
+    console.log('Attempting to start server...');
     // Run migrations on startup
     await migrate();
+    console.log('Migrations completed successfully.');
   } catch (error) {
     console.error('Failed to run migrations on startup:', error);
     // We continue starting the server so we can at least return 500s with logs
   }
+
+  app.get('/', (req, res) => {
+    res.send('API running');
+  });
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };
+
+// Global error handlers for debugging
+process.on('uncaughtException', (error) => {
+  console.error('UNCAUGHT EXCEPTION:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
 
 startServer();
 
