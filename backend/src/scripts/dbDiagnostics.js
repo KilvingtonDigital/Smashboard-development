@@ -26,14 +26,25 @@ const runDiagnostics = async () => {
     console.log('🔍 DATABASE CONNECTION DIAGNOSTICS');
     console.log('========================================');
 
-    if (!process.env.DATABASE_URL) {
-        console.error('❌ ERROR: DATABASE_URL environment variable is missing!');
-        return;
-    }
+    const publicUrl = process.env.DATABASE_PUBLIC_URL;
+    const internalUrl = process.env.DATABASE_URL;
 
-    // Masked URL for verification
-    const maskedUrl = process.env.DATABASE_URL.replace(/:[^:]+@/, ':****@');
-    console.log(`Target URL: ${maskedUrl}`);
+    console.log(`Public URL Var Present: ${publicUrl ? 'YES' : 'NO'}`);
+    if (publicUrl) {
+        console.log(`Public URL Target: ${publicUrl.replace(/:[^:]+@/, ':****@')}`);
+    }
+    console.log(`Internal URL Target: ${internalUrl ? internalUrl.replace(/:[^:]+@/, ':****@') : 'MISSING'}`);
+
+    // Test 0: Public URL (Priority)
+    if (publicUrl) {
+        await testConnection('PRIORITY: Public URL', {
+            connectionString: publicUrl,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000
+        });
+    } else {
+        console.log('⚠️ SKIPPING Public URL Test (Variable not set)');
+    }
 
     // Test 1: Standard / Default (Let pg decide)
     await testConnection('Default (No Config)', {
