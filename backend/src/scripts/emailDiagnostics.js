@@ -34,7 +34,15 @@ const runDiagnostics = async () => {
         });
 
         console.log('🔄 Verifying connection...');
-        await transporter.verify();
+
+        // Add timeout to verification
+        const verifyPromise = transporter.verify();
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection Timed Out (5s)')), 5000)
+        );
+
+        await Promise.race([verifyPromise, timeoutPromise]);
+
         console.log('✅ Connection Verified! Credentials are correct.');
 
         // Optional: Send test email if an argument is provided

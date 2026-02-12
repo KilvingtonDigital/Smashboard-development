@@ -3,25 +3,21 @@ const { Client } = require('pg');
 const https = require('https');
 require('dotenv').config();
 
-const checkInternet = () => {
-    return new Promise((resolve) => {
-        const start = Date.now();
-        const req = https.get('https://www.google.com', (res) => {
-            const time = Date.now() - start;
-            console.log(`   ✅ Internet Access: OK (${res.statusCode}) - ${time}ms`);
-            resolve(true);
-        });
-        req.on('error', (e) => {
-            console.log(`   ❌ Internet Access: FAILED. Error: ${e.message}`);
-            resolve(false);
-        });
-        req.setTimeout(2000, () => {
-            console.log('   ❌ Internet Access: TIMEOUT (2s)');
-            req.abort();
-            resolve(false);
-        });
-    });
-};
+const req = https.get('https://www.google.com', (res) => {
+    const time = Date.now() - start;
+    console.log(`   ✅ Internet Access: OK (${res.statusCode}) - ${time}ms`);
+    resolve(true);
+});
+req.on('error', (e) => {
+    console.log(`   ❌ Internet Access: FAILED. Error: ${e.message}`);
+    resolve(false);
+});
+req.setTimeout(2000, () => {
+    if (req.destroyed) return; // Already finished?
+    console.log('   ❌ Internet Access: TIMEOUT (2s)');
+    req.abort();
+    resolve(false);
+});
 
 const testConnection = async (name, config) => {
     console.log(`\n🧪 Testing Config: ${name}`);
