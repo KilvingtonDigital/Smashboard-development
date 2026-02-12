@@ -66,6 +66,7 @@ app.use((err, req, res, next) => {
 
 // Import diagnostics
 const runDiagnostics = require('./scripts/dbDiagnostics');
+const runEmailDiagnostics = require('./scripts/emailDiagnostics');
 
 // Start server
 const startServer = async () => {
@@ -74,6 +75,7 @@ const startServer = async () => {
 
     // Run connectivity diagnostics first
     await runDiagnostics();
+    await runEmailDiagnostics();
 
     // Run migrations on startup
     await migrate();

@@ -59,4 +59,5 @@ const runDiagnostics = async () => {
     }
 };
 
-runDiagnostics();
+// runDiagnostics();
+module.exports = runDiagnostics;
