@@ -1,10 +1,13 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Prefer Public URL if available (to bypass internal network issues), otherwise use Internal
+const connectionString = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: false, // Disable SSL for internal network connection to prevent ETIMEDOUT
-  connectionTimeoutMillis: 5000 // Fail after 5 seconds instead of hanging
+  connectionString: connectionString,
+  ssl: { rejectUnauthorized: false }, // Required for Railway (Public or Private)
+  connectionTimeoutMillis: 10000 // Give it 10 seconds
 });
 
 pool.on('connect', () => {
