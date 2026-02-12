@@ -64,16 +64,24 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Import diagnostics
+const runDiagnostics = require('./scripts/dbDiagnostics');
+
 // Start server
 const startServer = async () => {
   try {
     console.log('Attempting to start server...');
+
+    // Run connectivity diagnostics first
+    await runDiagnostics();
+
     // Run migrations on startup
     await migrate();
     console.log('Migrations completed successfully.');
   } catch (error) {
     console.error('Failed to run migrations on startup:', error);
     // We continue starting the server so we can at least return 500s with logs
+    console.warn('⚠️ Server starting in DEGRADED mode (DB connection failed)');
   }
 
   app.get('/', (req, res) => {
