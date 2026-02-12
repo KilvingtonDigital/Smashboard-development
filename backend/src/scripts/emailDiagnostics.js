@@ -40,7 +40,7 @@ const runDiagnostics = async () => {
         // Add timeout to verification
         const verifyPromise = transporter.verify();
         const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection Timed Out (5s)')), 5000)
+            setTimeout(() => reject(new Error('Connection Timed Out (10s)')), 10000)
         );
 
         await Promise.race([verifyPromise, timeoutPromise]);
