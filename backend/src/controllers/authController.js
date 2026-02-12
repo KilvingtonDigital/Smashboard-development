@@ -174,7 +174,7 @@ exports.forgotPassword = async (req, res) => {
     if (!emailResult.success) {
       console.error('Email service failed:', emailResult.error);
       return res.status(500).json({
-        error: `Email failed to send: ${emailResult.error.message || 'Unknown error'}. Check Railway logs.`
+        error: `Email failed to send: ${emailResult.error?.message || JSON.stringify(emailResult.error)}. Check Railway logs.`
       });
     }
 
