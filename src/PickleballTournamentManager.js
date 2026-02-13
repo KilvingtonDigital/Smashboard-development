@@ -3275,10 +3275,9 @@ const PickleballTournamentManager = () => {
               <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-2">
                 <Button
                   className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
-                  onClick={generateNextRound}
-                  disabled={presentPlayers.length < 4}
+                  onClick={() => setTab('roster')}
                 >
-                  Generate Next Round
+                  Continue to Roster
                 </Button>
                 {rounds.length > 0 && (
                   <Button
@@ -3294,7 +3293,8 @@ const PickleballTournamentManager = () => {
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="text-xs text-blue-800">
                     ✓ <strong>Late arrivals/departures handled automatically</strong><br />
-                    Simply check/uncheck "Present" and generate the next round!
+                    ✓ <strong>Late arrivals/departures handled automatically</strong><br />
+                    Simply check/uncheck "Present" in the Roster tab and generate the next round!
                   </div>
                 </div>
               )}
@@ -3463,6 +3463,24 @@ const PickleballTournamentManager = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <Button
+                className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
+                onClick={generateNextRound}
+                disabled={presentPlayers.length < 4}
+              >
+                {currentRound === 0 ? 'Start Tournament (Generate Round 1)' : 'Generate Next Round'}
+              </Button>
+              {rounds.length > 0 && (
+                <Button
+                  className="bg-red-500 text-white hover:bg-red-600 w-full"
+                  onClick={clearAllRounds}
+                >
+                  Clear All Rounds
+                </Button>
+              )}
             </div>
           </Card>
         )}
