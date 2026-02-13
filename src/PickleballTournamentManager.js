@@ -3223,11 +3223,13 @@ const PickleballTournamentManager = () => {
                   <select
                     value={tournamentType}
                     onChange={(e) => {
+                      const newVal = e.target.value;
+                      console.log('SETTING CHANGE: Tournament Type ->', newVal);
                       if (rounds.length > 0) {
                         if (!window.confirm('Changing tournament type will clear all rounds. Continue?')) return;
                         clearAllRounds();
                       }
-                      setTournamentType(e.target.value);
+                      setTournamentType(newVal);
                     }}
                     className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                   >
@@ -3240,11 +3242,13 @@ const PickleballTournamentManager = () => {
                   <select
                     value={gameFormat}
                     onChange={(e) => {
+                      const newVal = e.target.value;
+                      console.log('SETTING CHANGE: Game Format ->', newVal);
                       if (rounds.length > 0) {
                         if (!window.confirm('Changing game format will clear all rounds. Continue?')) return;
                         clearAllRounds();
                       }
-                      setGameFormat(e.target.value);
+                      setGameFormat(newVal);
                     }}
                     className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                   >
@@ -3258,7 +3262,11 @@ const PickleballTournamentManager = () => {
                   <Field label="Match format">
                     <select
                       value={matchFormat}
-                      onChange={(e) => setMatchFormat(e.target.value)}
+                      onChange={(e) => {
+                        const newVal = e.target.value;
+                        console.log('SETTING CHANGE: Match Format ->', newVal);
+                        setMatchFormat(newVal);
+                      }}
                       className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                     >
                       <option value="single_match">1 Match per Round</option>
@@ -3272,7 +3280,10 @@ const PickleballTournamentManager = () => {
                     <input
                       type="checkbox"
                       checked={separateBySkill}
-                      onChange={(e) => setSeparateBySkill(e.target.checked)}
+                      onChange={(e) => {
+                        console.log('SETTING CHANGE: Separate by Skill ->', e.target.checked);
+                        setSeparateBySkill(e.target.checked);
+                      }}
                     />
                     <span className="text-sm">Separate by skill levels</span>
                   </label>
