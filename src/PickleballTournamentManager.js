@@ -2666,18 +2666,22 @@ const PickleballTournamentManager = () => {
       console.log('generateNextRound called');
       let newRound;
 
+      // Safety check for matchFormat
+      const effectiveMatchFormat = (typeof matchFormat !== 'undefined') ? matchFormat : 'single_match';
+      console.log('Generating round with format:', effectiveMatchFormat);
+
       if (tournamentType === 'round_robin') {
         // Check game format
         if (gameFormat === 'singles') {
           if (presentPlayers.length < 2) return alert('Need at least 2 present players for singles');
-          newRound = generateSinglesRound(presentPlayers, courts, playerStats, currentRound, matchFormat);
+          newRound = generateSinglesRound(presentPlayers, courts, playerStats, currentRound, effectiveMatchFormat);
         } else if (gameFormat === 'teamed_doubles') {
           if (teams.length < 2) return alert('Need at least 2 teams for teamed doubles');
-          newRound = generateTeamedDoublesRound(teams, courts, teamStats, currentRound, matchFormat);
+          newRound = generateTeamedDoublesRound(teams, courts, teamStats, currentRound, effectiveMatchFormat);
         } else {
           // Regular doubles with random pairing
           if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-          newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, matchFormat);
+          newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, effectiveMatchFormat);
         }
 
         if (newRound && newRound.length > 0) {
