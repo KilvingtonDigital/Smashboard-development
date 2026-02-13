@@ -412,6 +412,10 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
   console.log(`\n=== GENERATING ROUND ROBIN ROUND ${currentRoundIndex + 1} ===`);
   console.log(`Present players: ${presentPlayers.length}`);
 
+  if (typeof matchFormat === 'undefined') {
+    throw new Error('Match format is not defined. Please select a valid match format in Setup.');
+  }
+
   const updatedStats = initializePlayerStats(playerStats, presentPlayers);
   let matches = [];
 
@@ -758,6 +762,10 @@ const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundId
 const generateSinglesRound = (presentPlayers, courts, playerStats, currentRoundIndex, matchFormat = 'single_match') => {
   console.log(`\n=== GENERATING SINGLES ROUND ${currentRoundIndex + 1} ===`);
   console.log(`Present players: ${presentPlayers.length}`);
+
+  if (typeof matchFormat === 'undefined') {
+    throw new Error('Match format is not defined. Please select a valid match format in Setup.');
+  }
 
   const updatedStats = initializePlayerStats(playerStats, presentPlayers);
   const maxPlayersPerRound = courts * 2; // Each court has 2 singles players
@@ -2667,7 +2675,12 @@ const PickleballTournamentManager = () => {
       let newRound;
 
       // Safety check for matchFormat
-      const effectiveMatchFormat = (typeof matchFormat !== 'undefined') ? matchFormat : 'single_match';
+      // Validate matchFormat is present
+      const effectiveMatchFormat = matchFormat;
+      if (typeof effectiveMatchFormat === 'undefined') {
+        throw new Error('Match format is missing. Please return to Setup and select a Match Format.');
+      }
+      console.log('Generating round with format:', effectiveMatchFormat);
       console.log('Generating round with format:', effectiveMatchFormat);
 
       if (tournamentType === 'round_robin') {
