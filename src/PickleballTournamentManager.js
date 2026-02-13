@@ -2541,28 +2541,12 @@ const PickleballTournamentManager = () => {
         }
 
         // Update sitting-out players (those not in ANY match this round)
+        // MOVED TO generateNextRound to prevent multiple increments per round
+        /*
         presentPlayers.forEach(p => {
-          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
-            // Check if they're currently on any court
-            const onCourt = courtStates.some(c => {
-              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
-              const m = c.currentMatch;
-              if (m.gameFormat === 'singles') {
-                return m.player1?.id === p.id || m.player2?.id === p.id;
-              } else {
-                return m.team1?.some(player => player.id === p.id) ||
-                  m.team2?.some(player => player.id === p.id);
-              }
-            });
-
-            if (!onCourt) {
-              updated[p.id] = {
-                ...updated[p.id],
-                roundsSatOut: updated[p.id].roundsSatOut + 1
-              };
-            }
-          }
+           // ... logic removed ...
         });
+        */
 
         // Note: roundsSatOut is not tracked in continuous play mode
         // It only makes sense for traditional round-based generation
@@ -2655,27 +2639,12 @@ const PickleballTournamentManager = () => {
         });
 
         // Update sitting-out players
+        // MOVED TO generateNextRound to prevent multiple increments per round
+        /*
         presentPlayers.forEach(p => {
-          if (!playersInThisMatch.has(p.id) && updated[p.id]) {
-            const onCourt = courtStates.some(c => {
-              if (!c.currentMatch || c.courtNumber === courtNumber) return false;
-              const m = c.currentMatch;
-              if (m.gameFormat === 'singles') {
-                return m.player1?.id === p.id || m.player2?.id === p.id;
-              } else {
-                return m.team1?.some(player => player.id === p.id) ||
-                  m.team2?.some(player => player.id === p.id);
-              }
-            });
-
-            if (!onCourt) {
-              updated[p.id] = {
-                ...updated[p.id],
-                roundsSatOut: updated[p.id].roundsSatOut + 1
-              };
-            }
-          }
+          // ... logic removed ...
         });
+        */
 
         // Note: roundsSatOut is not tracked in continuous play mode
         // It only makes sense for traditional round-based generation
@@ -2725,6 +2694,63 @@ const PickleballTournamentManager = () => {
           });
           return updated;
         });
+
+        // Update roundsSatOut for players NOT in this round
+        const playersInRound = new Set();
+        newRound.forEach(m => {
+          if (m.gameFormat === 'singles') {
+            if (m.player1) playersInRound.add(m.player1.id);
+            if (m.player2) playersInRound.add(m.player2.id);
+          } else {
+            // Doubles
+            m.team1?.forEach(p => playersInRound.add(p.id));
+            m.team2?.forEach(p => playersInRound.add(p.id));
+          }
+        });
+
+        if (gameFormat === 'teamed_doubles') {
+          setTeamStats(prev => {
+            const updated = { ...prev };
+            // We need to know which teams are playing.
+            // But simpler: just iterate all teams. If team members are in playersInRound, they are playing.
+            // Actually, team stats has roundsSatOut too.
+            teams.forEach(t => {
+              const isPlaying = newRound.some(m => m.team1Id === t.id || m.team2Id === t.id);
+              if (updated[t.id]) {
+                if (!isPlaying) {
+                  updated[t.id] = { ...updated[t.id], roundsSatOut: (updated[t.id].roundsSatOut || 0) + 1 };
+                } else {
+                  updated[t.id] = { ...updated[t.id], roundsSatOut: 0 };
+                }
+              }
+            });
+            return updated;
+          });
+        } else {
+          // Singles or Regular Doubles -> Update Player Stats
+          setPlayerStats(prev => {
+            const updated = { ...prev };
+            presentPlayers.forEach(p => {
+              if (updated[p.id]) {
+                if (!playersInRound.has(p.id)) {
+                  updated[p.id] = {
+                    ...updated[p.id],
+                    roundsSatOut: (updated[p.id].roundsSatOut || 0) + 1
+                  };
+                } else {
+                  // Start of round, if they are playing, reset sat out?
+                  // Yes, because they are no longer sitting out.
+                  updated[p.id] = {
+                    ...updated[p.id],
+                    roundsSatOut: 0
+                  };
+                }
+              }
+            });
+            return updated;
+          });
+        }
+
       } else {
         return alert('Unable to generate balanced matches with current players. Try clearing constraints.');
       }
