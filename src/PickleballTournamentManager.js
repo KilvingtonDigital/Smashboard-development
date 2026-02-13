@@ -2662,27 +2662,115 @@ const PickleballTournamentManager = () => {
   };
 
   const generateNextRound = () => {
-    let newRound;
+    try {
+      console.log('generateNextRound called');
+      let newRound;
 
-    if (tournamentType === 'round_robin') {
-      // Check game format
-      if (gameFormat === 'singles') {
-        if (presentPlayers.length < 2) return alert('Need at least 2 present players for singles');
-        newRound = generateSinglesRound(presentPlayers, courts, playerStats, currentRound, matchFormat);
-      } else if (gameFormat === 'teamed_doubles') {
-        if (teams.length < 2) return alert('Need at least 2 teams for teamed doubles');
-        newRound = generateTeamedDoublesRound(teams, courts, teamStats, currentRound, matchFormat);
-      } else {
-        // Regular doubles with random pairing
+      if (tournamentType === 'round_robin') {
+        // Check game format
+        if (gameFormat === 'singles') {
+          if (presentPlayers.length < 2) return alert('Need at least 2 present players for singles');
+          newRound = generateSinglesRound(presentPlayers, courts, playerStats, currentRound, matchFormat);
+        } else if (gameFormat === 'teamed_doubles') {
+          if (teams.length < 2) return alert('Need at least 2 teams for teamed doubles');
+          newRound = generateTeamedDoublesRound(teams, courts, teamStats, currentRound, matchFormat);
+        } else {
+          // Regular doubles with random pairing
+          if (presentPlayers.length < 4) return alert('Need at least 4 present players');
+          newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, matchFormat);
+        }
+
+        if (newRound && newRound.length > 0) {
+          // Auto-assign Round Robin matches to courts
+          setCourtStates(prev => {
+            const updated = prev.map(c => ({ ...c })); // Deep copy to be safe
+            newRound.forEach((match) => {
+              const courtIdx = updated.findIndex(c => c.courtNumber === match.court);
+              if (courtIdx !== -1) {
+                updated[courtIdx] = {
+                  ...updated[courtIdx],
+                  status: 'playing',
+                  currentMatch: match
+                };
+              }
+            });
+            return updated;
+          });
+
+          // Update roundsSatOut for players NOT in this round
+          const playersInRound = new Set();
+          newRound.forEach(m => {
+            if (m.gameFormat === 'singles') {
+              if (m.player1) playersInRound.add(m.player1.id);
+              if (m.player2) playersInRound.add(m.player2.id);
+            } else {
+              // Doubles
+              m.team1?.forEach(p => playersInRound.add(p.id));
+              m.team2?.forEach(p => playersInRound.add(p.id));
+            }
+          });
+
+          if (gameFormat === 'teamed_doubles') {
+            setTeamStats(prev => {
+              const updated = { ...prev };
+              // We need to know which teams are playing.
+              // But simpler: just iterate all teams. If team members are in playersInRound, they are playing.
+              // Actually, team stats has roundsSatOut too.
+              teams.forEach(t => {
+                const isPlaying = newRound.some(m => m.team1Id === t.id || m.team2Id === t.id);
+                if (updated[t.id]) {
+                  if (!isPlaying) {
+                    updated[t.id] = { ...updated[t.id], roundsSatOut: (updated[t.id].roundsSatOut || 0) + 1 };
+                  } else {
+                    updated[t.id] = { ...updated[t.id], roundsSatOut: 0 };
+                  }
+                }
+              });
+              return updated;
+            });
+          } else {
+            // Singles or Regular Doubles -> Update Player Stats
+            setPlayerStats(prev => {
+              const updated = { ...prev };
+              presentPlayers.forEach(p => {
+                if (updated[p.id]) {
+                  if (!playersInRound.has(p.id)) {
+                    updated[p.id] = {
+                      ...updated[p.id],
+                      roundsSatOut: (updated[p.id].roundsSatOut || 0) + 1
+                    };
+                  } else {
+                    // Start of round, if they are playing, reset sat out?
+                    // Yes, because they are no longer sitting out.
+                    updated[p.id] = {
+                      ...updated[p.id],
+                      roundsSatOut: 0
+                    };
+                  }
+                }
+              });
+              return updated;
+            });
+          }
+
+        } else {
+          return alert('Unable to generate balanced matches with current players. Try clearing constraints.');
+        }
+      } else if (tournamentType === 'king_of_court') {
         if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-        newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, matchFormat);
-      }
 
-      if (newRound && newRound.length > 0) {
-        // Auto-assign Round Robin matches to courts
+        // Check if all courts are ready
+        const allCourtsReady = courtStates.every(c => c.status === 'ready');
+        if (!allCourtsReady) {
+          return alert('Complete all current matches before generating the next King of Court round.');
+        }
+
+        newRound = generateKingOfCourtRound(presentPlayers, courts, kotStats, currentRound, rounds, separateBySkill);
+
+        // Assign King of Court matches to courts immediately
         setCourtStates(prev => {
-          const updated = prev.map(c => ({ ...c })); // Deep copy to be safe
-          newRound.forEach((match) => {
+          const updated = [...prev];
+          newRound.forEach((match, idx) => {
             const courtIdx = updated.findIndex(c => c.courtNumber === match.court);
             if (courtIdx !== -1) {
               updated[courtIdx] = {
@@ -2694,127 +2782,45 @@ const PickleballTournamentManager = () => {
           });
           return updated;
         });
-
-        // Update roundsSatOut for players NOT in this round
-        const playersInRound = new Set();
-        newRound.forEach(m => {
-          if (m.gameFormat === 'singles') {
-            if (m.player1) playersInRound.add(m.player1.id);
-            if (m.player2) playersInRound.add(m.player2.id);
-          } else {
-            // Doubles
-            m.team1?.forEach(p => playersInRound.add(p.id));
-            m.team2?.forEach(p => playersInRound.add(p.id));
-          }
-        });
-
         if (gameFormat === 'teamed_doubles') {
-          setTeamStats(prev => {
-            const updated = { ...prev };
-            // We need to know which teams are playing.
-            // But simpler: just iterate all teams. If team members are in playersInRound, they are playing.
-            // Actually, team stats has roundsSatOut too.
-            teams.forEach(t => {
-              const isPlaying = newRound.some(m => m.team1Id === t.id || m.team2Id === t.id);
-              if (updated[t.id]) {
-                if (!isPlaying) {
-                  updated[t.id] = { ...updated[t.id], roundsSatOut: (updated[t.id].roundsSatOut || 0) + 1 };
-                } else {
-                  updated[t.id] = { ...updated[t.id], roundsSatOut: 0 };
-                }
-              }
-            });
-            return updated;
-          });
+          if (teams.length < 2) return alert('Need at least 2 teams for King of Court');
+          newRound = generateKingOfCourtTeamedRound(teams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
         } else {
-          // Singles or Regular Doubles -> Update Player Stats
-          setPlayerStats(prev => {
-            const updated = { ...prev };
-            presentPlayers.forEach(p => {
-              if (updated[p.id]) {
-                if (!playersInRound.has(p.id)) {
-                  updated[p.id] = {
-                    ...updated[p.id],
-                    roundsSatOut: (updated[p.id].roundsSatOut || 0) + 1
-                  };
-                } else {
-                  // Start of round, if they are playing, reset sat out?
-                  // Yes, because they are no longer sitting out.
-                  updated[p.id] = {
-                    ...updated[p.id],
-                    roundsSatOut: 0
-                  };
-                }
-              }
-            });
-            return updated;
-          });
+          // Doubles with fixed partnerships (auto-generated on first round)
+          if (presentPlayers.length < 4) return alert('Need at least 4 present players');
+
+          // If first round, generate balanced teams
+          if (currentRound === 0 && kotAutoTeams.length === 0) {
+            const autoTeams = generateBalancedKOTTeams(presentPlayers);
+            if (autoTeams.length < 2) {
+              return alert('Need at least 4 players (2 teams) for King of Court');
+            }
+            setKotAutoTeams(autoTeams);
+            console.log(`Generated ${autoTeams.length} balanced teams for King of Court:`,
+              autoTeams.map(t => `${t.player1.name}/${t.player2.name} (${t.avgRating.toFixed(1)})`));
+
+            // Generate first round with these teams
+            newRound = generateKingOfCourtTeamedRound(autoTeams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
+          } else {
+            // Use existing auto-generated teams
+            if (kotAutoTeams.length < 2) {
+              return alert('King of Court teams not found. Please restart the tournament.');
+            }
+            newRound = generateKingOfCourtTeamedRound(kotAutoTeams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
+          }
         }
-
       } else {
-        return alert('Unable to generate balanced matches with current players. Try clearing constraints.');
-      }
-    } else if (tournamentType === 'king_of_court') {
-      if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-
-      // Check if all courts are ready
-      const allCourtsReady = courtStates.every(c => c.status === 'ready');
-      if (!allCourtsReady) {
-        return alert('Complete all current matches before generating the next King of Court round.');
+        return alert('Invalid tournament type');
       }
 
-      newRound = generateKingOfCourtRound(presentPlayers, courts, kotStats, currentRound, rounds, separateBySkill);
-
-      // Assign King of Court matches to courts immediately
-      setCourtStates(prev => {
-        const updated = [...prev];
-        newRound.forEach((match, idx) => {
-          const courtIdx = updated.findIndex(c => c.courtNumber === match.court);
-          if (courtIdx !== -1) {
-            updated[courtIdx] = {
-              ...updated[courtIdx],
-              status: 'playing',
-              currentMatch: match
-            };
-          }
-        });
-        return updated;
-      });
-      if (gameFormat === 'teamed_doubles') {
-        if (teams.length < 2) return alert('Need at least 2 teams for King of Court');
-        newRound = generateKingOfCourtTeamedRound(teams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
-      } else {
-        // Doubles with fixed partnerships (auto-generated on first round)
-        if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-
-        // If first round, generate balanced teams
-        if (currentRound === 0 && kotAutoTeams.length === 0) {
-          const autoTeams = generateBalancedKOTTeams(presentPlayers);
-          if (autoTeams.length < 2) {
-            return alert('Need at least 4 players (2 teams) for King of Court');
-          }
-          setKotAutoTeams(autoTeams);
-          console.log(`Generated ${autoTeams.length} balanced teams for King of Court:`,
-            autoTeams.map(t => `${t.player1.name}/${t.player2.name} (${t.avgRating.toFixed(1)})`));
-
-          // Generate first round with these teams
-          newRound = generateKingOfCourtTeamedRound(autoTeams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
-        } else {
-          // Use existing auto-generated teams
-          if (kotAutoTeams.length < 2) {
-            return alert('King of Court teams not found. Please restart the tournament.');
-          }
-          newRound = generateKingOfCourtTeamedRound(kotAutoTeams, courts, kotTeamStats, currentRound, rounds, separateBySkill);
-        }
-      }
-    } else {
-      return alert('Invalid tournament type');
+      setRounds(prev => [...prev, newRound]);
+      setCurrentRound(prev => prev + 1);
+      setLocked(true);
+      setTab('schedule');
+    } catch (error) {
+      console.error("Error generating next round:", error);
+      alert(`Error generating round: ${error.message}`);
     }
-
-    setRounds(prev => [...prev, newRound]);
-    setCurrentRound(prev => prev + 1);
-    setLocked(true);
-    setTab('schedule');
   };
 
   const clearAllRounds = () => {
