@@ -4146,13 +4146,15 @@ const PickleballTournamentManager = () => {
               <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/90 w-full sm:w-auto" onClick={() => setEndOpen(true)}>
                 End Session
               </Button>
-              <Button
-                className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full sm:w-auto"
-                onClick={generateNextRound}
-                disabled={presentPlayers.length < 4}
-              >
-                Next Round
-              </Button>
+              {tab !== 'setup' && tab !== 'roster' && (
+                <Button
+                  className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full sm:w-auto"
+                  onClick={generateNextRound}
+                  disabled={presentPlayers.length < 4}
+                >
+                  Next Round
+                </Button>
+              )}
             </div>
           </div>
         </div>
