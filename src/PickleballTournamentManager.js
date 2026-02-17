@@ -3853,12 +3853,9 @@ const PickleballTournamentManager = () => {
                     <div className="mt-3 pt-3 border-t border-brand-gray">
                       <Button
                         className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
-                        onClick={() => {
-                          setCurrentRound(prev => prev + 1);
-                          alert(`Started Round ${currentRound + 2}. Assign matches to courts as they become ready.`);
-                        }}
+                        onClick={generateNextRound}
                       >
-                        Start New Round (Round {currentRound + 2})
+                        Start New Round (Round {currentRound + 1})
                       </Button>
                     </div>
                   )}
