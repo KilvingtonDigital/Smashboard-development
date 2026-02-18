@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import InstallPrompt from './InstallPrompt';
 import { useAuth } from './contexts/AuthContext';
 import { useAPI } from './hooks/useAPI';
@@ -1897,6 +1897,9 @@ const PickleballTournamentManager = () => {
   const [bulkText, setBulkText] = useState('');
   const [addNote, setAddNote] = useState(null);
 
+  // Cooldown ref to prevent accidental double-clicks (Complete -> Assign)
+  const lastActionRef = useRef(0);
+
   const [courts, setCourts] = useState(4);
   const [sessionMinutes, setSessionMinutes] = useState(120);
   const [minutesPerRound, setMinutesPerRound] = useState(20);
@@ -2160,6 +2163,21 @@ const PickleballTournamentManager = () => {
 
   // Court Flow Management Functions
   const assignMatchToCourt = (courtNumber) => {
+    // Cooldown check (prevent accidental double-click after complete match)
+    const now = Date.now();
+    if (now - lastActionRef.current < 1000) {
+      console.log('Ignoring assignment request due to cooldown');
+      return;
+    }
+    lastActionRef.current = now;
+
+    // Safety check: Don't assign if there's already a match
+    const court = courtStates.find(c => c.courtNumber === courtNumber);
+    if (court && court.currentMatch) {
+      console.warn(`Court ${courtNumber} already has a match. Cannot assign new match.`);
+      return;
+    }
+
     if (tournamentType === 'round_robin') {
       if (gameFormat === 'singles') {
         assignSinglesMatchToCourt(courtNumber);
@@ -2502,6 +2520,9 @@ const PickleballTournamentManager = () => {
 
     const match = court.currentMatch;
     console.log(`Completing match on court ${courtNumber}:`, match);
+
+    // Set cooldown to prevent accidental clicks on the "Assign Match" button that appears
+    lastActionRef.current = Date.now();
 
     // First, free up the court so availablePlayers calculation is correct
     setCourtStates(prev => prev.map(c =>
@@ -3803,7 +3824,7 @@ const PickleballTournamentManager = () => {
                         )}
 
                         <div className="flex flex-col gap-1">
-                          {court.status === 'ready' && (
+                          {court.status === 'ready' && !court.currentMatch && (
                             <Button
                               className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 text-xs py-1"
                               onClick={() => assignMatchToCourt(court.courtNumber)}
