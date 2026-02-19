@@ -458,6 +458,69 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
       }
     });
 
+    // ── GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────────
+    // After skill groups produce matches, find players who are sitting out
+    // disproportionately and force-swap them into a match, replacing the
+    // currently-scheduled player with the fewest total sit-outs.
+    // This prevents players like Fili (alone in a high skill tier) from
+    // being continuously excluded when their merged group fills courts first.
+    {
+      const playingIds = new Set();
+      matches.forEach(match => {
+        if (match.team1) match.team1.forEach(p => playingIds.add(p.id));
+        if (match.team2) match.team2.forEach(p => playingIds.add(p.id));
+      });
+
+      const sittingOut = presentPlayers.filter(p => !playingIds.has(p.id));
+
+      if (sittingOut.length > 0) {
+        // Calculate average rounds sat out among all players
+        const totalSatOut = presentPlayers.reduce((sum, p) => {
+          const s = updatedStats[p.id] || {};
+          return sum + (s.roundsSatOut || 0);
+        }, 0);
+        const avgSatOut = totalSatOut / presentPlayers.length;
+
+        // Players who have sat out materially more than average (≥ avg + 2)
+        const fairnessCandidates = sittingOut
+          .map(p => ({ player: p, satOut: (updatedStats[p.id] || {}).roundsSatOut || 0 }))
+          .filter(({ satOut }) => satOut >= avgSatOut + 2)
+          .sort((a, b) => b.satOut - a.satOut); // highest sit-out first
+
+        fairnessCandidates.forEach(({ player: needsIn }) => {
+          // Find the playing player with the LOWEST sit-out count (least needy)
+          let swapCandidate = null;
+          let lowestSatOut = Infinity;
+
+          matches.forEach(match => {
+            [...(match.team1 || []), ...(match.team2 || [])].forEach(p => {
+              const s = updatedStats[p.id] || {};
+              const satOut = s.roundsSatOut || 0;
+              if (satOut < lowestSatOut) {
+                lowestSatOut = satOut;
+                swapCandidate = { player: p, match };
+              }
+            });
+          });
+
+          if (swapCandidate && lowestSatOut < (updatedStats[needsIn.id] || {}).roundsSatOut) {
+            console.log(`[Fairness Swap] Replacing ${swapCandidate.player.name} (${lowestSatOut} sat) with ${needsIn.name} (${(updatedStats[needsIn.id] || {}).roundsSatOut || 0} sat)`);
+            const m = swapCandidate.match;
+            // Replace in whichever team the candidate is on
+            if (m.team1?.some(p => p.id === swapCandidate.player.id)) {
+              m.team1 = m.team1.map(p => p.id === swapCandidate.player.id ? needsIn : p);
+            } else if (m.team2?.some(p => p.id === swapCandidate.player.id)) {
+              m.team2 = m.team2.map(p => p.id === swapCandidate.player.id ? needsIn : p);
+            }
+            // Update the playing set
+            playingIds.delete(swapCandidate.player.id);
+            playingIds.add(needsIn.id);
+          }
+        });
+      }
+    }
+    // ── END GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────
+
     if (matches.length < courts) {
       console.log(`\nOnly using ${matches.length} of ${courts} courts. Checking for remaining players...`);
 
