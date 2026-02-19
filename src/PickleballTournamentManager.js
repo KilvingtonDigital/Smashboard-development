@@ -481,10 +481,12 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
         }, 0);
         const avgSatOut = totalSatOut / presentPlayers.length;
 
-        // Players who have sat out materially more than average (≥ avg + 2)
+        // Players who have sat out materially more than average (> avg + 1)
+        // Threshold of +1 means the swap fires as soon as someone is 1+ sit-out
+        // above the group average — caps individual sit-outs at 2 in most cases
         const fairnessCandidates = sittingOut
           .map(p => ({ player: p, satOut: (updatedStats[p.id] || {}).roundsSatOut || 0 }))
-          .filter(({ satOut }) => satOut >= avgSatOut + 2)
+          .filter(({ satOut }) => satOut > avgSatOut + 1)
           .sort((a, b) => b.satOut - a.satOut); // highest sit-out first
 
         fairnessCandidates.forEach(({ player: needsIn }) => {
