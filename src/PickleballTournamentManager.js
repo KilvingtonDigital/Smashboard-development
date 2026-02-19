@@ -4033,236 +4033,263 @@ const PickleballTournamentManager = () => {
               )}
             </div>
 
-            {rounds.map((round, rIdx) => (
-              <details key={rIdx} open={rIdx === rounds.length - 1}>
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <div className="text-sm sm:text-base font-semibold text-brand-primary">Round {rIdx + 1}</div>
-                  <div className="text-xs sm:text-sm text-brand-primary/70">
-                    Courts: {round.length}
-                  </div>
-                </summary>
-
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-                  {round.map((m, i) => (
-                    <Card key={m.id} className="relative bg-brand-white">
-                      <div className="absolute right-3 top-3 flex items-center gap-2 text-[11px] sm:text-xs text-brand-primary/60 flex-wrap justify-end">
-                        <span>Diff {m.diff?.toFixed?.(2) ?? '--'}</span>
-                        {m.teamGender && (
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
-                            m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
-                              'bg-purple-100 text-purple-700'
-                            }`}>
-                            {m.teamGender === 'male_male' ? 'M/M' :
-                              m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
-                          </span>
-                        )}
-                        {m.courtLevel && (
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${m.courtLevel === 'KING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                            {m.courtLevel === 'KING' ? '👑 KING' : m.courtLevel}
-                          </span>
-                        )}
-                        {m.skillLevel && !m.courtLevel && (
-                          <span className={`px-2 py-0.5 rounded text-xs ${m.skillLevel === 'Beginner' ? 'bg-red-100 text-red-700' :
-                            m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
-                              m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                                m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
-                                  m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
-                                    m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
-                                      m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
-                                        'bg-gray-100 text-gray-700'
-                            }`}>
-                            {m.skillLevel}
-                          </span>
-                        )}
+            {rounds.map((round, rIdx) => {
+              const isLatest = rIdx === rounds.length - 1;
+              const completedCount = round.filter(m => m.status === 'completed').length;
+              const allDone = completedCount === round.length && round.length > 0;
+              return (
+                <details key={rIdx} open={isLatest}>
+                  <summary className="list-none cursor-pointer select-none">
+                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 mb-2 transition-colors ${isLatest
+                      ? 'border-brand-primary bg-brand-primary text-brand-white'
+                      : allDone
+                        ? 'border-green-400 bg-green-50 text-green-800'
+                        : 'border-brand-gray bg-brand-white text-brand-primary'
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-base">Round {rIdx + 1}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isLatest
+                          ? 'bg-white/20 text-white'
+                          : allDone
+                            ? 'bg-green-200 text-green-800'
+                            : 'bg-brand-gray text-brand-primary/70'
+                          }`}>
+                          {isLatest ? '▶ Current' : allDone ? '✓ Completed' : `${completedCount}/${round.length} done`}
+                        </span>
                       </div>
-
-                      <div className="text-[11px] sm:text-xs font-medium text-brand-primary/70 flex items-center gap-2">
-                        <span>Court {m.court}</span>
-                        {m.pointsForWin && (
-                          <span className="text-brand-secondary font-bold">
-                            {m.pointsForWin} pts/win
-                          </span>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs ${isLatest ? 'text-white/70' : 'text-brand-primary/50'}`}>
+                          {round.length} {round.length === 1 ? 'match' : 'matches'}
+                        </span>
+                        <span className={`text-sm transition-transform details-chevron ${isLatest ? 'text-white' : 'text-brand-primary/60'}`}>
+                          ▾
+                        </span>
                       </div>
+                    </div>
+                  </summary>
 
-                      {/* Singles Format */}
-                      {m.gameFormat === 'singles' && m.player1 && m.player2 ? (
-                        <>
-                          <div className="mt-1">
-                            <div className="font-semibold text-brand-primary text-sm">Player 1</div>
-                            <div className="text-brand-primary/90">
-                              <div className="text-sm sm:text-base font-medium">{m.player1.name} <span className="text-xs text-brand-primary/60">({m.player1.rating})</span></div>
-                            </div>
-                          </div>
-
-                          <div className="mt-2">
-                            <div className="font-semibold text-brand-primary text-sm">Player 2</div>
-                            <div className="text-brand-primary/90">
-                              <div className="text-sm sm:text-base font-medium">{m.player2.name} <span className="text-xs text-brand-primary/60">({m.player2.rating})</span></div>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        /* Doubles Format (regular and teamed) */
-                        <>
-                          <div className="mt-1">
-                            <div className="font-semibold text-brand-primary text-sm">Team 1</div>
-                            {m.team1 ? (
-                              <div className="text-brand-primary/90">
-                                <div className="text-sm sm:text-base font-medium">{m.team1[0].name} <span className="text-xs text-brand-primary/60">({m.team1[0].rating})</span></div>
-                                <div className="text-sm sm:text-base font-medium">{m.team1[1].name} <span className="text-xs text-brand-primary/60">({m.team1[1].rating})</span></div>
-                              </div>
-                            ) : <div className="text-sm">TBD</div>}
-                          </div>
-
-                          <div className="mt-2">
-                            <div className="font-semibold text-brand-primary text-sm">Team 2</div>
-                            {m.team2 ? (
-                              <div className="text-brand-primary/90">
-                                <div className="text-sm sm:text-base font-medium">{m.team2[0].name} <span className="text-xs text-brand-primary/60">({m.team2[0].rating})</span></div>
-                                <div className="text-sm sm:text-base font-medium">{m.team2[1].name} <span className="text-xs text-brand-primary/60">({m.team2[1].rating})</span></div>
-                              </div>
-                            ) : <div className="text-sm">TBD</div>}
-                          </div>
-                        </>
-                      )}
-
-                      <div className="mt-3 flex flex-col gap-2">
-                        {/* Best of 3 scoring */}
-                        {m.matchFormat === 'best_of_3' ? (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-brand-primary/70 w-16">Game 1:</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game1Score1 === '' ? '' : m.game1Score1 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game1Score1', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                              <span className="text-brand-primary">–</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game1Score2 === '' ? '' : m.game1Score2 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game1Score2', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-brand-primary/70 w-16">Game 2:</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game2Score1 === '' ? '' : m.game2Score1 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game2Score1', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                              <span className="text-brand-primary">–</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game2Score2 === '' ? '' : m.game2Score2 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game2Score2', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-brand-primary/70 w-16">Game 3:</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game3Score1 === '' ? '' : m.game3Score1 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game3Score1', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                              <span className="text-brand-primary">–</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={m.game3Score2 === '' ? '' : m.game3Score2 ?? ''}
-                                onChange={(e) => updateScore(rIdx, i, 'game3Score2', e.target.value)}
-                                className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          /* Single match scoring */
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={0}
-                              value={m.score1 === '' ? '' : m.score1 ?? ''}
-                              onChange={(e) => updateScore(rIdx, i, 'score1', e.target.value)}
-                              className="w-20 h-10 rounded border border-brand-gray px-2"
-                            />
-                            <span className="text-brand-primary">–</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={m.score2 === '' ? '' : m.score2 ?? ''}
-                              onChange={(e) => updateScore(rIdx, i, 'score2', e.target.value)}
-                              className="w-20 h-10 rounded border border-brand-gray px-2"
-                            />
-                          </div>
-                        )}
-
-
-                        {m.status !== 'completed' ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="grid grid-cols-2 gap-2 sm:flex">
-                              <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 1)}>
-                                {m.gameFormat === 'singles' ? 'Player 1 wins' : 'Team 1 wins'}
-                              </Button>
-                              <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 2)}>
-                                {m.gameFormat === 'singles' ? 'Player 2 wins' : 'Team 2 wins'}
-                              </Button>
-                            </div>
-                            {m.matchFormat === 'best_of_3' && (
-                              <Button
-                                className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 text-sm"
-                                onClick={() => {
-                                  setRounds((prev) => {
-                                    const newRounds = prev.map((r) => r.map((match) => ({ ...match })));
-                                    const match = newRounds[rIdx][i];
-
-                                    // Calculate winner from fresh state
-                                    const winner = calculateBestOf3Winner(match);
-                                    console.log('Setting winner to:', winner === 1 ? 'team1' : winner === 2 ? 'team2' : 'none');
-
-                                    if (winner) {
-                                      setWinner(match, winner);
-                                      return newRounds;
-                                    } else {
-                                      alert('Please enter scores for at least 2 games to determine a winner.');
-                                      return prev; // Don't update if no winner
-                                    }
-                                  });
-                                }}
-                              >
-                                Submit Scores
-                              </Button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs px-2 py-1 rounded bg-brand-gray text-brand-primary">
-                              Completed
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                    {round.map((m, i) => (
+                      <Card key={m.id} className="relative bg-brand-white">
+                        <div className="absolute right-3 top-3 flex items-center gap-2 text-[11px] sm:text-xs text-brand-primary/60 flex-wrap justify-end">
+                          <span>Diff {m.diff?.toFixed?.(2) ?? '--'}</span>
+                          {m.teamGender && (
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${m.teamGender === 'male_male' ? 'bg-blue-100 text-blue-700' :
+                              m.teamGender === 'female_female' ? 'bg-pink-100 text-pink-700' :
+                                'bg-purple-100 text-purple-700'
+                              }`}>
+                              {m.teamGender === 'male_male' ? 'M/M' :
+                                m.teamGender === 'female_female' ? 'F/F' : 'Mixed'}
                             </span>
-                            {m.pointsForWin && (
-                              <span className="text-xs text-brand-primary/70">
-                                +{m.pointsForWin} pts awarded
-                              </span>
-                            )}
-                          </div>
+                          )}
+                          {m.courtLevel && (
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${m.courtLevel === 'KING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {m.courtLevel === 'KING' ? '👑 KING' : m.courtLevel}
+                            </span>
+                          )}
+                          {m.skillLevel && !m.courtLevel && (
+                            <span className={`px-2 py-0.5 rounded text-xs ${m.skillLevel === 'Beginner' ? 'bg-red-100 text-red-700' :
+                              m.skillLevel === 'Advanced Beginner' ? 'bg-orange-100 text-orange-700' :
+                                m.skillLevel === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
+                                  m.skillLevel === 'Advanced Intermediate' ? 'bg-green-100 text-green-700' :
+                                    m.skillLevel === 'Advanced' ? 'bg-blue-100 text-blue-700' :
+                                      m.skillLevel === 'Expert' ? 'bg-purple-100 text-purple-700' :
+                                        m.skillLevel === 'Expert Pro' ? 'bg-pink-100 text-pink-700' :
+                                          'bg-gray-100 text-gray-700'
+                              }`}>
+                              {m.skillLevel}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] sm:text-xs font-medium text-brand-primary/70 flex items-center gap-2">
+                          <span>Court {m.court}</span>
+                          {m.pointsForWin && (
+                            <span className="text-brand-secondary font-bold">
+                              {m.pointsForWin} pts/win
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Singles Format */}
+                        {m.gameFormat === 'singles' && m.player1 && m.player2 ? (
+                          <>
+                            <div className="mt-1">
+                              <div className="font-semibold text-brand-primary text-sm">Player 1</div>
+                              <div className="text-brand-primary/90">
+                                <div className="text-sm sm:text-base font-medium">{m.player1.name} <span className="text-xs text-brand-primary/60">({m.player1.rating})</span></div>
+                              </div>
+                            </div>
+
+                            <div className="mt-2">
+                              <div className="font-semibold text-brand-primary text-sm">Player 2</div>
+                              <div className="text-brand-primary/90">
+                                <div className="text-sm sm:text-base font-medium">{m.player2.name} <span className="text-xs text-brand-primary/60">({m.player2.rating})</span></div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          /* Doubles Format (regular and teamed) */
+                          <>
+                            <div className="mt-1">
+                              <div className="font-semibold text-brand-primary text-sm">Team 1</div>
+                              {m.team1 ? (
+                                <div className="text-brand-primary/90">
+                                  <div className="text-sm sm:text-base font-medium">{m.team1[0].name} <span className="text-xs text-brand-primary/60">({m.team1[0].rating})</span></div>
+                                  <div className="text-sm sm:text-base font-medium">{m.team1[1].name} <span className="text-xs text-brand-primary/60">({m.team1[1].rating})</span></div>
+                                </div>
+                              ) : <div className="text-sm">TBD</div>}
+                            </div>
+
+                            <div className="mt-2">
+                              <div className="font-semibold text-brand-primary text-sm">Team 2</div>
+                              {m.team2 ? (
+                                <div className="text-brand-primary/90">
+                                  <div className="text-sm sm:text-base font-medium">{m.team2[0].name} <span className="text-xs text-brand-primary/60">({m.team2[0].rating})</span></div>
+                                  <div className="text-sm sm:text-base font-medium">{m.team2[1].name} <span className="text-xs text-brand-primary/60">({m.team2[1].rating})</span></div>
+                                </div>
+                              ) : <div className="text-sm">TBD</div>}
+                            </div>
+                          </>
                         )}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </details>
-            ))}
+
+                        <div className="mt-3 flex flex-col gap-2">
+                          {/* Best of 3 scoring */}
+                          {m.matchFormat === 'best_of_3' ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-brand-primary/70 w-16">Game 1:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game1Score1 === '' ? '' : m.game1Score1 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game1Score1', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                                <span className="text-brand-primary">–</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game1Score2 === '' ? '' : m.game1Score2 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game1Score2', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-brand-primary/70 w-16">Game 2:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game2Score1 === '' ? '' : m.game2Score1 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game2Score1', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                                <span className="text-brand-primary">–</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game2Score2 === '' ? '' : m.game2Score2 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game2Score2', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-brand-primary/70 w-16">Game 3:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game3Score1 === '' ? '' : m.game3Score1 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game3Score1', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                                <span className="text-brand-primary">–</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={m.game3Score2 === '' ? '' : m.game3Score2 ?? ''}
+                                  onChange={(e) => updateScore(rIdx, i, 'game3Score2', e.target.value)}
+                                  className="w-16 h-9 rounded border border-brand-gray px-2 text-sm"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            /* Single match scoring */
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.score1 === '' ? '' : m.score1 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'score1', e.target.value)}
+                                className="w-20 h-10 rounded border border-brand-gray px-2"
+                              />
+                              <span className="text-brand-primary">–</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={m.score2 === '' ? '' : m.score2 ?? ''}
+                                onChange={(e) => updateScore(rIdx, i, 'score2', e.target.value)}
+                                className="w-20 h-10 rounded border border-brand-gray px-2"
+                              />
+                            </div>
+                          )}
+
+
+                          {m.status !== 'completed' ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="grid grid-cols-2 gap-2 sm:flex">
+                                <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 1)}>
+                                  {m.gameFormat === 'singles' ? 'Player 1 wins' : 'Team 1 wins'}
+                                </Button>
+                                <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full sm:w-auto" onClick={() => quickWin(rIdx, i, 2)}>
+                                  {m.gameFormat === 'singles' ? 'Player 2 wins' : 'Team 2 wins'}
+                                </Button>
+                              </div>
+                              {m.matchFormat === 'best_of_3' && (
+                                <Button
+                                  className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 text-sm"
+                                  onClick={() => {
+                                    setRounds((prev) => {
+                                      const newRounds = prev.map((r) => r.map((match) => ({ ...match })));
+                                      const match = newRounds[rIdx][i];
+
+                                      // Calculate winner from fresh state
+                                      const winner = calculateBestOf3Winner(match);
+                                      console.log('Setting winner to:', winner === 1 ? 'team1' : winner === 2 ? 'team2' : 'none');
+
+                                      if (winner) {
+                                        setWinner(match, winner);
+                                        return newRounds;
+                                      } else {
+                                        alert('Please enter scores for at least 2 games to determine a winner.');
+                                        return prev; // Don't update if no winner
+                                      }
+                                    });
+                                  }}
+                                >
+                                  Submit Scores
+                                </Button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs px-2 py-1 rounded bg-brand-gray text-brand-primary">
+                                Completed
+                              </span>
+                              {m.pointsForWin && (
+                                <span className="text-xs text-brand-primary/70">
+                                  +{m.pointsForWin} pts awarded
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </details>
+              );
+            })}
           </div>
         )}
       </div>
