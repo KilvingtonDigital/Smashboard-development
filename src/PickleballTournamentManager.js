@@ -2087,25 +2087,19 @@ const PickleballTournamentManager = () => {
           match.team2?.forEach(p => playersInRound.add(p.id));
         }
       });
-      // Any present player not in this round was sitting out
-      // We use a heuristic: if a round has >= 1 match, any player not in a match sat out
+      // Sat-out: any PRESENT player not in this round sat out
+      // Use presentPlayers as the full universe (not just players who appeared in any match)
       if (round.length > 0) {
-        const allPlayerIds = new Set([
-          ...rounds.flatMap(r => r.flatMap(m => {
-            if (m.gameFormat === 'singles') return [m.player1?.id, m.player2?.id].filter(Boolean);
-            return [...(m.team1 || []), ...(m.team2 || [])].map(p => p.id);
-          }))
-        ]);
-        allPlayerIds.forEach(id => {
-          if (!stats[id]) stats[id] = { matchesPlayed: 0, roundsSatOut: 0 };
-          if (!playersInRound.has(id)) {
-            stats[id].roundsSatOut += 1;
+        presentPlayers.forEach(p => {
+          if (!stats[p.id]) stats[p.id] = { matchesPlayed: 0, roundsSatOut: 0 };
+          if (!playersInRound.has(p.id)) {
+            stats[p.id].roundsSatOut += 1;
           }
         });
       }
     });
     return stats;
-  }, [rounds]);
+  }, [rounds, presentPlayers]);
 
   // Derive accurate team stats from rounds history
   const derivedTeamStats = useMemo(() => {
@@ -2375,10 +2369,17 @@ const PickleballTournamentManager = () => {
       if (newRounds.length === 0) {
         newRounds.push([match]);
       } else {
-        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+        const lastRound = newRounds[newRounds.length - 1];
+        const lastRoundDone = lastRound.every(m => m.status === 'completed');
+        if (lastRoundDone) {
+          newRounds.push([match]);
+        } else {
+          newRounds[newRounds.length - 1] = [...lastRound, match];
+        }
       }
       return newRounds;
     });
+    setCurrentRound(rounds.length > 0 && rounds[rounds.length - 1].every(m => m.status === 'completed') ? rounds.length : currentRound);
 
     // Initialize player stats if needed
     setPlayerStats(prev => {
@@ -2479,16 +2480,23 @@ const PickleballTournamentManager = () => {
         : c
     ));
 
-    // Immediately add to rounds so score cards appear in history
+    // Add to rounds: start a new round if the last round is fully completed, otherwise append
     setRounds(prev => {
       const newRounds = [...prev];
       if (newRounds.length === 0) {
         newRounds.push([match]);
       } else {
-        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+        const lastRound = newRounds[newRounds.length - 1];
+        const lastRoundDone = lastRound.every(m => m.status === 'completed');
+        if (lastRoundDone) {
+          newRounds.push([match]);
+        } else {
+          newRounds[newRounds.length - 1] = [...lastRound, match];
+        }
       }
       return newRounds;
     });
+    setCurrentRound(rounds.length > 0 && rounds[rounds.length - 1].every(m => m.status === 'completed') ? rounds.length : currentRound);
 
     // Initialize player stats if needed
     setPlayerStats(prev => {
@@ -2615,16 +2623,23 @@ const PickleballTournamentManager = () => {
         : c
     ));
 
-    // Immediately add to rounds so score cards appear in history
+    // Add to rounds: start a new round if the last round is fully completed, otherwise append
     setRounds(prev => {
       const newRounds = [...prev];
       if (newRounds.length === 0) {
         newRounds.push([match]);
       } else {
-        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+        const lastRound = newRounds[newRounds.length - 1];
+        const lastRoundDone = lastRound.every(m => m.status === 'completed');
+        if (lastRoundDone) {
+          newRounds.push([match]);
+        } else {
+          newRounds[newRounds.length - 1] = [...lastRound, match];
+        }
       }
       return newRounds;
     });
+    setCurrentRound(rounds.length > 0 && rounds[rounds.length - 1].every(m => m.status === 'completed') ? rounds.length : currentRound);
 
     // Initialize team stats if needed
     setTeamStats(prev => {
