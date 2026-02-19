@@ -458,96 +458,6 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
       }
     });
 
-    // ── GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────────
-    // Compute sit-outs directly from previousRounds (ground truth) to avoid
-    // any accumulated-stats bugs. This is fully independent of playerStats.
-    {
-      const playingIds = new Set();
-      matches.forEach(match => {
-        if (match.team1) match.team1.forEach(p => playingIds.add(p.id));
-        if (match.team2) match.team2.forEach(p => playingIds.add(p.id));
-      });
-
-      const sittingOut = presentPlayers.filter(p => !playingIds.has(p.id));
-
-      if (sittingOut.length > 0 && previousRounds.length > 0) {
-        // ── Ground-truth sit-out count per player ──
-        const groundTruthSatOut = {};
-        presentPlayers.forEach(p => { groundTruthSatOut[p.id] = 0; });
-        previousRounds.forEach(round => {
-          if (round.length === 0) return;
-          const inRound = new Set();
-          round.forEach(m => {
-            m.team1?.forEach(p => inRound.add(p.id));
-            m.team2?.forEach(p => inRound.add(p.id));
-          });
-          presentPlayers.forEach(p => {
-            if (!inRound.has(p.id)) groundTruthSatOut[p.id] = (groundTruthSatOut[p.id] || 0) + 1;
-          });
-        });
-
-        // Average and max-allowed sit-outs
-        const totalSatOut = presentPlayers.reduce((sum, p) => sum + (groundTruthSatOut[p.id] || 0), 0);
-        const avgSatOut = totalSatOut / presentPlayers.length;
-        // Cap: no player sits out more than ceil(avg) + 1 rounds (min threshold = 2)
-        const maxAllowed = Math.max(2, Math.ceil(avgSatOut) + 1);
-
-        const fairnessCandidates = sittingOut
-          .map(p => ({ player: p, satOut: groundTruthSatOut[p.id] || 0 }))
-          .filter(({ satOut }) => satOut >= maxAllowed)
-          .sort((a, b) => b.satOut - a.satOut); // highest sit-out first
-
-        console.log(`[Fairness] avg=${avgSatOut.toFixed(2)} maxAllowed=${maxAllowed} candidates=${fairnessCandidates.map(c => `${c.player.name}(${c.satOut})`).join(', ')}`);
-
-        fairnessCandidates.forEach(({ player: needsIn }) => {
-          // ── Rating-aware swap: find the best player to replace ────────────
-          // Score each scheduled player on two axes:
-          //   1. Rating closeness to needsIn  (primary — keeps match competitive)
-          //   2. Fewest sat-outs              (secondary — prefer least-needy)
-          // The candidate must also have fewer sat-outs than needsIn (fairness direction).
-          let swapCandidate = null;
-          let bestSwapScore = Infinity;
-
-          matches.forEach(match => {
-            [...(match.team1 || []), ...(match.team2 || [])].forEach(p => {
-              const satOut = (updatedStats[p.id] || {}).roundsSatOut || 0;
-              const needsInSatOut = (updatedStats[needsIn.id] || {}).roundsSatOut || 0;
-              if (satOut >= needsInSatOut) return; // only swap out less-needy players
-
-              const ratingDiff = Math.abs(Number(p.rating) - Number(needsIn.rating));
-              // Combined score: rating closeness (weighted heavily) + sat-out tiebreak
-              const swapScore = ratingDiff * 10 + satOut;
-
-              if (swapScore < bestSwapScore) {
-                bestSwapScore = swapScore;
-                swapCandidate = { player: p, match };
-              }
-            });
-          });
-
-          if (swapCandidate) {
-            const m = swapCandidate.match;
-            console.log(`[Fairness Swap] ${needsIn.name}(${needsIn.rating}) in for ${swapCandidate.player.name}(${swapCandidate.player.rating}) — rating diff: ${Math.abs(Number(needsIn.rating) - Number(swapCandidate.player.rating)).toFixed(2)}`);
-
-            // Build the new group of 4 with needsIn replacing the swap target
-            const allFour = [...(m.team1 || []), ...(m.team2 || [])]
-              .map(p => p.id === swapCandidate.player.id ? needsIn : p);
-
-            // Re-balance teams optimally using findBestTeamSplit
-            const rebalanced = findBestTeamSplit(allFour, updatedStats, false);
-            m.team1 = rebalanced.team1;
-            m.team2 = rebalanced.team2;
-            m.diff = Math.abs(avg(rebalanced.team1) - avg(rebalanced.team2));
-
-            // Update the playing set
-            playingIds.delete(swapCandidate.player.id);
-            playingIds.add(needsIn.id);
-          }
-        });
-      }
-    }
-    // ── END GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────
-
     if (matches.length < courts) {
       console.log(`\nOnly using ${matches.length} of ${courts} courts. Checking for remaining players...`);
 
@@ -579,10 +489,68 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
         console.log(`Added ${extraMatches.length} overflow match(es)`);
       }
     }
-
   } else {
     matches = generateMatchesForGroup(presentPlayers, updatedStats, courts, 1, currentRoundIndex, 'Mixed', matchFormat, preferMixedDoubles, femaleRestInterval);
   }
+
+  // ── GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────────
+  // Runs after BOTH branches so fairness is guaranteed regardless of separateBySkill.
+  // Uses ground-truth sit-out counts from previousRounds — immune to stat accumulation bugs.
+  if (previousRounds.length > 0) {
+    const fsPlayingIds = new Set();
+    matches.forEach(match => {
+      if (match.team1) match.team1.forEach(p => fsPlayingIds.add(p.id));
+      if (match.team2) match.team2.forEach(p => fsPlayingIds.add(p.id));
+    });
+    const fsSittingOut = presentPlayers.filter(p => !fsPlayingIds.has(p.id));
+    if (fsSittingOut.length > 0) {
+      const groundTruthSatOut = {};
+      presentPlayers.forEach(p => { groundTruthSatOut[p.id] = 0; });
+      previousRounds.forEach(round => {
+        if (round.length === 0) return;
+        const inRound = new Set();
+        round.forEach(m => {
+          m.team1?.forEach(p => inRound.add(p.id));
+          m.team2?.forEach(p => inRound.add(p.id));
+        });
+        presentPlayers.forEach(p => {
+          if (!inRound.has(p.id)) groundTruthSatOut[p.id] = (groundTruthSatOut[p.id] || 0) + 1;
+        });
+      });
+      const totalSatOut = presentPlayers.reduce((sum, p) => sum + (groundTruthSatOut[p.id] || 0), 0);
+      const avgSatOut = totalSatOut / presentPlayers.length;
+      const maxAllowed = Math.max(2, Math.ceil(avgSatOut) + 1);
+      const fairnessCandidates = fsSittingOut
+        .map(p => ({ player: p, satOut: groundTruthSatOut[p.id] || 0 }))
+        .filter(({ satOut }) => satOut >= maxAllowed)
+        .sort((a, b) => b.satOut - a.satOut);
+      console.log(`[Fairness] avg=${avgSatOut.toFixed(2)} maxAllowed=${maxAllowed} candidates=${fairnessCandidates.map(c => `${c.player.name}(${c.satOut})`).join(', ')}`);
+      fairnessCandidates.forEach(({ player: needsIn }) => {
+        const needsInSatOut = groundTruthSatOut[needsIn.id] || 0;
+        let swapCandidate = null;
+        let bestSwapScore = Infinity;
+        matches.forEach(match => {
+          [...(match.team1 || []), ...(match.team2 || [])].forEach(p => {
+            const pSatOut = groundTruthSatOut[p.id] || 0;
+            if (pSatOut >= needsInSatOut) return;
+            const ratingDiff = Math.abs(Number(p.rating) - Number(needsIn.rating));
+            const swapScore = ratingDiff * 10 + pSatOut;
+            if (swapScore < bestSwapScore) { bestSwapScore = swapScore; swapCandidate = { player: p, match }; }
+          });
+        });
+        if (swapCandidate) {
+          const m = swapCandidate.match;
+          console.log(`[Fairness Swap] ${needsIn.name}(${needsIn.rating}) in for ${swapCandidate.player.name}(${swapCandidate.player.rating})`);
+          const allFour = [...(m.team1 || []), ...(m.team2 || [])].map(p => p.id === swapCandidate.player.id ? needsIn : p);
+          const rebalanced = findBestTeamSplit(allFour, updatedStats, preferMixedDoubles);
+          m.team1 = rebalanced.team1; m.team2 = rebalanced.team2;
+          m.diff = Math.abs(avg(rebalanced.team1) - avg(rebalanced.team2));
+          fsPlayingIds.delete(swapCandidate.player.id); fsPlayingIds.add(needsIn.id);
+        }
+      });
+    }
+  }
+  // ── END GLOBAL FAIRNESS SWEEP ──────────────────────────────────────────
 
   updatePlayerStatsForRound(updatedStats, presentPlayers, matches, currentRoundIndex);
   validateFairness(updatedStats, presentPlayers, currentRoundIndex);
