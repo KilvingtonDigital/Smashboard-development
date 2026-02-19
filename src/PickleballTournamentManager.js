@@ -363,12 +363,17 @@ const initializePlayerStats = (playerStats, presentPlayers) => {
         player: p,
         roundsPlayed: 0,
         roundsSatOut: 0,
+        consecutiveRounds: 0,  // Track back-to-back play streaks (used for female rest)
         lastPlayedRound: -1,
         teammates: new Map(),
         opponents: new Map()
       };
     } else {
       updatedStats[p.id].player = p;
+      // Ensure new fields exist for existing players
+      if (updatedStats[p.id].consecutiveRounds === undefined) {
+        updatedStats[p.id].consecutiveRounds = 0;
+      }
     }
   });
 
@@ -410,9 +415,9 @@ const validateFairness = (playerStats, presentPlayers, currentRound) => {
   return difference <= 1;
 };
 
-const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRoundIndex, separateBySkill = true, matchFormat = 'single_match') => {
+const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRoundIndex, separateBySkill = true, matchFormat = 'single_match', preferMixedDoubles = false, femaleRestInterval = 2) => {
   console.log(`\n=== GENERATING ROUND ROBIN ROUND ${currentRoundIndex + 1} ===`);
-  console.log(`Present players: ${presentPlayers.length}`);
+  console.log(`Present players: ${presentPlayers.length}, preferMixed: ${preferMixedDoubles}, femaleRestInterval: ${femaleRestInterval}`);
 
   if (typeof matchFormat === 'undefined') {
     throw new Error('Match format is not defined. Please select a valid match format in Setup.');
@@ -443,10 +448,10 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
           groupCourts,
           courtIndex,
           currentRoundIndex,
-          courtIndex,
-          currentRoundIndex,
           skillGroup.label,
-          matchFormat
+          matchFormat,
+          preferMixedDoubles,
+          femaleRestInterval
         );
         matches.push(...groupMatches);
         courtIndex += groupMatches.length;
@@ -474,9 +479,10 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
           remainingCourts,
           courtIndex,
           currentRoundIndex,
-          currentRoundIndex,
           'Mixed (Overflow)',
-          matchFormat
+          matchFormat,
+          preferMixedDoubles,
+          femaleRestInterval
         );
 
         matches.push(...extraMatches);
@@ -485,7 +491,7 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
     }
 
   } else {
-    matches = generateMatchesForGroup(presentPlayers, updatedStats, courts, 1, currentRoundIndex, 'Mixed', matchFormat);
+    matches = generateMatchesForGroup(presentPlayers, updatedStats, courts, 1, currentRoundIndex, 'Mixed', matchFormat, preferMixedDoubles, femaleRestInterval);
   }
 
   updatePlayerStatsForRound(updatedStats, presentPlayers, matches, currentRoundIndex);
@@ -506,23 +512,90 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
   return matches;
 };
 
-const generateMatchesForGroup = (groupPlayers, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType, matchFormat) => {
+const generateMatchesForGroup = (groupPlayers, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType, matchFormat, preferMixedDoubles = false, femaleRestInterval = 2) => {
   console.log(`Generating ${groupType} matches for ${groupPlayers.length} players`);
 
   const maxPlayersPerRound = maxCourts * 4;
-  const playersThisRound = selectPlayersForRound(groupPlayers, playerStats, maxPlayersPerRound, roundIndex);
+  const playersThisRound = selectPlayersForRound(groupPlayers, playerStats, maxPlayersPerRound, roundIndex, preferMixedDoubles, femaleRestInterval);
 
   console.log(`${groupType} - Playing: ${playersThisRound.map(p => `${p.name}(${p.rating})`).join(', ')}`);
   console.log(`${groupType} - Sitting out: ${groupPlayers.filter(p => !playersThisRound.includes(p)).map(p => `${p.name}(${p.rating})`).join(', ')}`);
 
-  return createBalancedMatches(playersThisRound, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType, matchFormat);
+  return createBalancedMatches(playersThisRound, playerStats, maxCourts, startingCourtIndex, roundIndex, groupType, matchFormat, preferMixedDoubles);
 };
 
-const selectPlayersForRound = (allPlayers, playerStats, maxPlayers, roundIdx) => {
+const selectPlayersForRound = (allPlayers, playerStats, maxPlayers, roundIdx, preferMixedDoubles = false, femaleRestInterval = 2) => {
   if (allPlayers.length <= maxPlayers) {
     return [...allPlayers];
   }
 
+  // When preferMixedDoubles is on, do a two-phase selection:
+  // Phase 1: seat women (up to 2 per court = maxPlayers/2), applying rest interval logic
+  // Phase 2: fill remaining spots with men (and non-rested women if needed)
+  if (preferMixedDoubles) {
+    const women = allPlayers.filter(p => p.gender === 'female');
+    const men = allPlayers.filter(p => p.gender !== 'female');
+    const maxCourts = maxPlayers / 4;
+
+    // Score and sort women by priority (apply rest penalty)
+    const scoredWomen = women.map(p => {
+      const stats = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, consecutiveRounds: 0, lastPlayedRound: -1 };
+      let priority = stats.roundsSatOut * 500;
+      if (stats.lastPlayedRound >= 0) {
+        priority += (roundIdx - stats.lastPlayedRound) * 200;
+      } else {
+        priority += 1000; // Never played yet — highest priority
+      }
+      priority += Math.random() * 1;
+      // Rest penalty: if she's played consecutiveRounds >= femaleRestInterval, deprioritize
+      const consecutive = stats.consecutiveRounds || 0;
+      if (consecutive >= femaleRestInterval) {
+        priority -= 2000;
+        console.log(`[Rest] ${p.name} consecutive=${consecutive} >= restInterval=${femaleRestInterval} — soft rest applied`);
+      }
+      return { player: p, priority };
+    });
+    scoredWomen.sort((a, b) => b.priority - a.priority);
+
+    // Allocate up to 2 per court (but at most maxPlayers/2), prefer rested women
+    const maxWomenSlots = Math.min(women.length, maxCourts * 2);
+    const selectedWomen = scoredWomen.slice(0, maxWomenSlots).map(sw => sw.player);
+
+    // Score men by standard priority
+    const scoredMen = men.map(p => {
+      const stats = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1 };
+      let priority = stats.roundsSatOut * 500;
+      if (stats.lastPlayedRound >= 0) {
+        priority += (roundIdx - stats.lastPlayedRound) * 200;
+      } else {
+        priority += 1000;
+      }
+      const avgRoundsPlayed = roundIdx > 0 ?
+        Object.values(playerStats).reduce((sum, s) => sum + (s.roundsPlayed || 0), 0) / Object.keys(playerStats).length : 0;
+      priority += (avgRoundsPlayed - stats.roundsPlayed) * 100;
+      priority += Math.random() * 1;
+      return { player: p, priority };
+    });
+    scoredMen.sort((a, b) => b.priority - a.priority);
+
+    const remainingSlots = maxPlayers - selectedWomen.length;
+    const selectedMen = scoredMen.slice(0, remainingSlots).map(sm => sm.player);
+
+    // If we didn't fill all spots (e.g. very few men), pull in lower-priority women
+    const result = [...selectedWomen, ...selectedMen];
+    if (result.length < maxPlayers) {
+      const usedIds = new Set(result.map(p => p.id));
+      const extras = allPlayers
+        .filter(p => !usedIds.has(p.id))
+        .slice(0, maxPlayers - result.length);
+      result.push(...extras);
+    }
+
+    console.log(`[Gender-Aware] Selected ${selectedWomen.length}W + ${selectedMen.length}M for ${maxPlayers} spots`);
+    return result.slice(0, maxPlayers);
+  }
+
+  // Standard selection (preferMixedDoubles OFF)
   const playerPriority = allPlayers.map(p => {
     const stats = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1 };
     let priority = 0;
@@ -550,7 +623,7 @@ const selectPlayersForRound = (allPlayers, playerStats, maxPlayers, roundIdx) =>
     .map(item => item.player);
 };
 
-const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startingCourtIndex, roundIdx, groupType, matchFormat) => {
+const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startingCourtIndex, roundIdx, groupType, matchFormat, preferMixedDoubles = false) => {
   const matches = [];
   const usedPlayers = new Set();
   const availablePlayers = [...playersThisRound];
@@ -563,7 +636,7 @@ const createBalancedMatches = (playersThisRound, playerStats, maxCourts, startin
     const group = selectBestGroupOfFour(remaining, playerStats);
     if (!group || group.length < 4) break;
 
-    const teamSplit = findBestTeamSplit(group, playerStats);
+    const teamSplit = findBestTeamSplit(group, playerStats, preferMixedDoubles);
 
     group.forEach(p => usedPlayers.add(p.id));
 
@@ -680,7 +753,7 @@ const evaluateGroupQuality = (group, playerStats) => {
   return penalty;
 };
 
-const findBestTeamSplit = (group, playerStats) => {
+const findBestTeamSplit = (group, playerStats, preferMixedDoubles = false) => {
   const [p1, p2, p3, p4] = group;
 
   const splitOptions = [
@@ -713,6 +786,15 @@ const findBestTeamSplit = (group, playerStats) => {
     if (level1.key === level2.key) score -= 3;
     if (level3.key === level4.key) score -= 3;
 
+    // Gender-aware bonus: prefer M+W pairings when preferMixedDoubles is on
+    if (preferMixedDoubles) {
+      const team1IsMixed = split.team1.some(p => p.gender === 'female') && split.team1.some(p => p.gender !== 'female');
+      const team2IsMixed = split.team2.some(p => p.gender === 'female') && split.team2.some(p => p.gender !== 'female');
+      // Lower score = better — reward each mixed team with a significant bonus
+      if (team1IsMixed) score -= 40;
+      if (team2IsMixed) score -= 40;
+    }
+
     if (score < bestScore) {
       bestScore = score;
       bestSplit = split;
@@ -735,8 +817,10 @@ const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundId
     if (playingIds.has(player.id)) {
       stats.roundsPlayed++;
       stats.lastPlayedRound = roundIdx;
+      stats.consecutiveRounds = (stats.consecutiveRounds || 0) + 1;  // Increment streak
     } else {
       stats.roundsSatOut++;
+      stats.consecutiveRounds = 0;  // Reset streak on sit-out (rest achieved)
     }
   });
 
@@ -1910,6 +1994,8 @@ const PickleballTournamentManager = () => {
   const [teams, setTeams] = useState([]); // For teamed doubles: [{id, player1, player2, gender}]
   const [kotAutoTeams, setKotAutoTeams] = useState([]); // For King of Court auto-generated fixed teams
   const [separateBySkill, setSeparateBySkill] = useState(true);
+  const [preferMixedDoubles, setPreferMixedDoubles] = useState(true);  // Gender-aware pairing for doubles
+  const [femaleRestInterval, setFemaleRestInterval] = useState(2);     // Rest after N consecutive rounds
 
   const [rounds, setRounds] = useState([]);
   const [currentRound, setCurrentRound] = useState(0);
@@ -2906,7 +2992,7 @@ const PickleballTournamentManager = () => {
               roundsSatOut: derived.roundsSatOut,      // Use accurate derived sat-out count
             };
           });
-          newRound = generateRoundRobinRound(presentPlayers, courts, schedulingStats, currentRound, separateBySkill, effectiveMatchFormat);
+          newRound = generateRoundRobinRound(presentPlayers, courts, schedulingStats, currentRound, separateBySkill, effectiveMatchFormat, preferMixedDoubles, femaleRestInterval);
         }
 
         if (newRound && newRound.length > 0) {
@@ -3504,6 +3590,40 @@ const PickleballTournamentManager = () => {
                     )}
                   </div>
                 </Field>
+
+                {/* Mixed Doubles Preferences — only for regular doubles */}
+                {gameFormat === 'doubles' && (
+                  <>
+                    <Field label="Mixed doubles">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={preferMixedDoubles}
+                          onChange={(e) => setPreferMixedDoubles(e.target.checked)}
+                        />
+                        <span className="text-sm">Prefer mixed (M+W) team pairings</span>
+                      </label>
+                      <div className="mt-2 text-xs text-brand-primary/70">
+                        <p className="italic">Women fill courts first, teams split as M+W when possible</p>
+                      </div>
+                    </Field>
+
+                    {preferMixedDoubles && (
+                      <Field label="Female rest interval" hint="After this many rounds in a row, women are soft-rested (prefer to sit out next round if enough players available)">
+                        <select
+                          value={femaleRestInterval}
+                          onChange={(e) => setFemaleRestInterval(Number(e.target.value))}
+                          className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                        >
+                          <option value={1}>Rest after 1 round (most rest)</option>
+                          <option value={2}>Rest after 2 rounds (recommended)</option>
+                          <option value={3}>Rest after 3 rounds</option>
+                          <option value={4}>Rest after 4 rounds (least rest)</option>
+                        </select>
+                      </Field>
+                    )}
+                  </>
+                )}
               </div>
               <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-2">
                 <Button
