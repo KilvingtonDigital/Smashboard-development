@@ -33,8 +33,8 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
   const matches = [];
   rounds.forEach((r, rIdx) =>
     r.forEach((m) => {
-      const s1 = typeof m.score1 === 'number' ? m.score1 : Number(m.score1) || 0;
-      const s2 = typeof m.score2 === 'number' ? m.score2 : Number(m.score2) || 0;
+      const s1 = typeof m.score1 === 'number' || (typeof m.score1 === 'string' && m.score1.trim() !== '') ? Number(m.score1) : null;
+      const s2 = typeof m.score2 === 'number' || (typeof m.score2 === 'string' && m.score2.trim() !== '') ? Number(m.score2) : null;
 
       // Handle both singles (player1/player2) and doubles (team1/team2) formats
       let team1Data, team2Data;
@@ -137,11 +137,11 @@ const toCSV = (results) => {
       m.team2?.[1]?.name || '',
       m.team2?.[1]?.rating || '',
       m.matchFormat || 'single_match',
-      m.score1 || '', m.score2 || '',
+      m.score1 ?? '', m.score2 ?? '',
       gamesWonT1, gamesWonT2,
-      m.game1Score1 || '', m.game1Score2 || '',
-      m.game2Score1 || '', m.game2Score2 || '',
-      m.game3Score1 || '', m.game3Score2 || '',
+      m.game1Score1 ?? '', m.game1Score2 ?? '',
+      m.game2Score1 ?? '', m.game2Score2 ?? '',
+      m.game3Score1 ?? '', m.game3Score2 ?? '',
       m.winner || '',
       m.pointsAwarded || '',
       m.startTime || '', m.endTime || '', m.durationMinutes || ''
@@ -1983,13 +1983,40 @@ const PickleballTournamentManager = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [rounds.length, exportedThisSession]);
 
+  /* =====================  DEBUG LOGGING  ===================== */
+  useEffect(() => {
+    console.log(' [DEBUG] Players State Changed:', players.length, 'players');
+    // Log if players are added/removed to see if "new players create" is real
+    console.log(' [DEBUG] Names:', players.map(p => p.name).join(', '));
+  }, [players]);
+
+  useEffect(() => {
+    console.log(' [DEBUG] Court States Changed:', courtStates);
+    courtStates.forEach(c => {
+      if (c.currentMatch) {
+        console.log(`   - Court ${c.courtNumber} [${c.status}]: Match ${c.currentMatch.id} (${c.currentMatch.gameFormat})`);
+        if (c.currentMatch.gameFormat === 'singles') {
+          console.log(`     P1: ${c.currentMatch.player1?.name}, P2: ${c.currentMatch.player2?.name}`);
+        } else {
+          const t1 = c.currentMatch.team1?.map(p => p.name).join('/');
+          const t2 = c.currentMatch.team2?.map(p => p.name).join('/');
+          console.log(`     T1: ${t1} vs T2: ${t2}`);
+        }
+      } else {
+        console.log(`   - Court ${c.courtNumber} [${c.status}]: Empty`);
+      }
+    });
+  }, [courtStates]);
+  /* ========================================================== */
+
   const presentPlayers = useMemo(() => players.filter((p) => p.present !== false), [players]);
 
   // Get players/teams currently playing on courts
   const getPlayersOnCourt = useMemo(() => {
     const playingPlayerIds = new Set();
     courtStates.forEach(court => {
-      if (court.status === 'playing' && court.currentMatch) {
+      // Check if match exists, regardless of status (prevents ghost matches)
+      if (court.currentMatch) {
         const match = court.currentMatch;
         if (match.gameFormat === 'singles') {
           if (match.player1) playingPlayerIds.add(match.player1.id);
@@ -2007,7 +2034,8 @@ const PickleballTournamentManager = () => {
   const getTeamsOnCourt = useMemo(() => {
     const playingTeamIds = new Set();
     courtStates.forEach(court => {
-      if (court.status === 'playing' && court.currentMatch) {
+      // Check if match exists, regardless of status
+      if (court.currentMatch) {
         const match = court.currentMatch;
         if (match.team1Id) playingTeamIds.add(match.team1Id);
         if (match.team2Id) playingTeamIds.add(match.team2Id);
@@ -2519,7 +2547,7 @@ const PickleballTournamentManager = () => {
     });
   };
 
-  const completeCourtMatch = (courtNumber) => {
+  const completeCourtMatch = (courtNumber, nextStatus = 'ready') => {
     const court = courtStates.find(c => c.courtNumber === courtNumber);
     if (!court || !court.currentMatch) {
       console.warn(`Cannot complete match on court ${courtNumber} - no match found`);
@@ -2527,27 +2555,39 @@ const PickleballTournamentManager = () => {
     }
 
     const match = court.currentMatch;
-    console.log(`[Complete] Completing match on court ${courtNumber}:`, match);
+    console.log(`[Complete] Completing match on court ${courtNumber} -> ${nextStatus}:`, match);
 
-    // Set cooldown to prevent accidental clicks on the "Assign Match" button that appears
+    // Set cooldown to prevent accidental clicks
     lastActionRef.current = Date.now();
 
-    // First, free up the court so availablePlayers calculation is correct
+    // Free up the court and set next status (atomic update)
     setCourtStates(prev => prev.map(c =>
       c.courtNumber === courtNumber
-        ? { ...c, status: 'ready', currentMatch: null }
+        ? { ...c, status: nextStatus, currentMatch: null }
         : c
     ));
 
     // For King of Court, match is already in rounds array, so just update it in place
-    // For Round Robin, add match to current round
+    // For Round Robin, add match to current round ONLY if not already in rounds
     if (tournamentType === 'king_of_court') {
       // Match is already in the rounds array, no need to add it again
       // The match object reference in rounds is the same, so it's already updated with scores/winner
       console.log('King of Court match completed - already in rounds array');
     } else {
-      // Add match to current round in rounds array for Round Robin
+      // Check if the match is already in rounds (e.g., added by generateNextRound)
+      // If so, don't add it again - it was already tracked with scores/winner via updateScore/quickWin
       setRounds(prev => {
+        const matchAlreadyInRounds = prev.some(round =>
+          round.some(m => m.id === match.id)
+        );
+
+        if (matchAlreadyInRounds) {
+          console.log(`[Complete] Match ${match.id} already in rounds - skipping duplicate add`);
+          return prev; // No change needed
+        }
+
+        // Manual-assigned match: add to current round for the first time
+        console.log(`[Complete] Match ${match.id} NOT in rounds - adding now`);
         const newRounds = [...prev];
         if (newRounds.length === 0 || newRounds.length <= currentRound) {
           // Create new round if needed
@@ -3853,10 +3893,8 @@ const PickleballTournamentManager = () => {
                               <Button
                                 className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs py-1"
                                 onClick={() => {
-                                  // Complete the match first (frees players and adds match to rounds for scoring)
-                                  completeCourtMatch(court.courtNumber);
-                                  // Then set court to cleaning (keeps it unavailable)
-                                  updateCourtStatus(court.courtNumber, 'cleaning');
+                                  // Atomic update: Complete match AND set to cleaning
+                                  completeCourtMatch(court.courtNumber, 'cleaning');
                                 }}
                               >
                                 Set Cleaning
