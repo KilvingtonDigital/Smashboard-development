@@ -2879,7 +2879,19 @@ const PickleballTournamentManager = () => {
         } else {
           // Regular doubles with random pairing
           if (presentPlayers.length < 4) return alert('Need at least 4 present players');
-          newRound = generateRoundRobinRound(presentPlayers, courts, playerStats, currentRound, separateBySkill, effectiveMatchFormat);
+          // Build merged stats for scheduling: use derivedPlayerStats for accurate played/satOut counts,
+          // but keep imperative playerStats for teammate/opponent history which derivedPlayerStats doesn't track
+          const schedulingStats = {};
+          presentPlayers.forEach(p => {
+            const base = playerStats[p.id] || { roundsPlayed: 0, roundsSatOut: 0, lastPlayedRound: -1, opponents: new Map(), teammates: new Map() };
+            const derived = derivedPlayerStats[p.id] || { matchesPlayed: 0, roundsSatOut: 0 };
+            schedulingStats[p.id] = {
+              ...base,
+              roundsPlayed: derived.matchesPlayed,    // Use accurate derived count
+              roundsSatOut: derived.roundsSatOut,      // Use accurate derived sat-out count
+            };
+          });
+          newRound = generateRoundRobinRound(presentPlayers, courts, schedulingStats, currentRound, separateBySkill, effectiveMatchFormat);
         }
 
         if (newRound && newRound.length > 0) {
@@ -2931,24 +2943,21 @@ const PickleballTournamentManager = () => {
               return updated;
             });
           } else {
-            // Singles or Regular Doubles -> Update Player Stats
             setPlayerStats(prev => {
               const updated = { ...prev };
               presentPlayers.forEach(p => {
                 if (updated[p.id]) {
                   if (!playersInRound.has(p.id)) {
+                    // Player sat out this round — increment their cumulative sat-out count
                     updated[p.id] = {
                       ...updated[p.id],
                       roundsSatOut: (updated[p.id].roundsSatOut || 0) + 1
                     };
-                  } else {
-                    // Start of round, if they are playing, reset sat out?
-                    // Yes, because they are no longer sitting out.
-                    updated[p.id] = {
-                      ...updated[p.id],
-                      roundsSatOut: 0
-                    };
                   }
+                  // NOTE: Do NOT reset roundsSatOut to 0 when player plays.
+                  // Historically resetting caused players who sat out frequently to lose their
+                  // priority the moment they finally got to play, leading to repeated sit-outs.
+                  // The cumulative total is used for scheduling priority.
                 }
               });
               return updated;
