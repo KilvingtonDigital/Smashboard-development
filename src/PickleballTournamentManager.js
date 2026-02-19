@@ -490,30 +490,45 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
           .sort((a, b) => b.satOut - a.satOut); // highest sit-out first
 
         fairnessCandidates.forEach(({ player: needsIn }) => {
-          // Find the playing player with the LOWEST sit-out count (least needy)
+          // ── Rating-aware swap: find the best player to replace ────────────
+          // Score each scheduled player on two axes:
+          //   1. Rating closeness to needsIn  (primary — keeps match competitive)
+          //   2. Fewest sat-outs              (secondary — prefer least-needy)
+          // The candidate must also have fewer sat-outs than needsIn (fairness direction).
           let swapCandidate = null;
-          let lowestSatOut = Infinity;
+          let bestSwapScore = Infinity;
 
           matches.forEach(match => {
             [...(match.team1 || []), ...(match.team2 || [])].forEach(p => {
-              const s = updatedStats[p.id] || {};
-              const satOut = s.roundsSatOut || 0;
-              if (satOut < lowestSatOut) {
-                lowestSatOut = satOut;
+              const satOut = (updatedStats[p.id] || {}).roundsSatOut || 0;
+              const needsInSatOut = (updatedStats[needsIn.id] || {}).roundsSatOut || 0;
+              if (satOut >= needsInSatOut) return; // only swap out less-needy players
+
+              const ratingDiff = Math.abs(Number(p.rating) - Number(needsIn.rating));
+              // Combined score: rating closeness (weighted heavily) + sat-out tiebreak
+              const swapScore = ratingDiff * 10 + satOut;
+
+              if (swapScore < bestSwapScore) {
+                bestSwapScore = swapScore;
                 swapCandidate = { player: p, match };
               }
             });
           });
 
-          if (swapCandidate && lowestSatOut < (updatedStats[needsIn.id] || {}).roundsSatOut) {
-            console.log(`[Fairness Swap] Replacing ${swapCandidate.player.name} (${lowestSatOut} sat) with ${needsIn.name} (${(updatedStats[needsIn.id] || {}).roundsSatOut || 0} sat)`);
+          if (swapCandidate) {
             const m = swapCandidate.match;
-            // Replace in whichever team the candidate is on
-            if (m.team1?.some(p => p.id === swapCandidate.player.id)) {
-              m.team1 = m.team1.map(p => p.id === swapCandidate.player.id ? needsIn : p);
-            } else if (m.team2?.some(p => p.id === swapCandidate.player.id)) {
-              m.team2 = m.team2.map(p => p.id === swapCandidate.player.id ? needsIn : p);
-            }
+            console.log(`[Fairness Swap] ${needsIn.name}(${needsIn.rating}) in for ${swapCandidate.player.name}(${swapCandidate.player.rating}) — rating diff: ${Math.abs(Number(needsIn.rating) - Number(swapCandidate.player.rating)).toFixed(2)}`);
+
+            // Build the new group of 4 with needsIn replacing the swap target
+            const allFour = [...(m.team1 || []), ...(m.team2 || [])]
+              .map(p => p.id === swapCandidate.player.id ? needsIn : p);
+
+            // Re-balance teams optimally using findBestTeamSplit
+            const rebalanced = findBestTeamSplit(allFour, updatedStats, false);
+            m.team1 = rebalanced.team1;
+            m.team2 = rebalanced.team2;
+            m.diff = Math.abs(avg(rebalanced.team1) - avg(rebalanced.team2));
+
             // Update the playing set
             playingIds.delete(swapCandidate.player.id);
             playingIds.add(needsIn.id);
