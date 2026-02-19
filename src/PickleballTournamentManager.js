@@ -2270,10 +2270,6 @@ const PickleballTournamentManager = () => {
       player2 = sortedAvailable[1];
     }
 
-    if (!window.confirm(`Assign Singles Match?\n\n${player1.name} (${player1.rating})\nvs\n${player2.name} (${player2.rating})`)) {
-      return;
-    }
-
     const match = {
       id: uid(),
       court: courtNumber,
@@ -2301,6 +2297,17 @@ const PickleballTournamentManager = () => {
         ? { ...c, status: 'playing', currentMatch: match }
         : c
     ));
+
+    // Immediately add to rounds so score cards appear in history
+    setRounds(prev => {
+      const newRounds = [...prev];
+      if (newRounds.length === 0) {
+        newRounds.push([match]);
+      } else {
+        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+      }
+      return newRounds;
+    });
 
     // Initialize player stats if needed
     setPlayerStats(prev => {
@@ -2373,10 +2380,6 @@ const PickleballTournamentManager = () => {
     const t1Names = teamSplit.team1.map(p => p.name).join('/');
     const t2Names = teamSplit.team2.map(p => p.name).join('/');
 
-    if (!window.confirm(`Assign Doubles Match?\n\nTeam 1: ${t1Names}\nvs\nTeam 2: ${t2Names}`)) {
-      return;
-    }
-
     const match = {
       id: uid(),
       court: courtNumber,
@@ -2404,6 +2407,17 @@ const PickleballTournamentManager = () => {
         ? { ...c, status: 'playing', currentMatch: match }
         : c
     ));
+
+    // Immediately add to rounds so score cards appear in history
+    setRounds(prev => {
+      const newRounds = [...prev];
+      if (newRounds.length === 0) {
+        newRounds.push([match]);
+      } else {
+        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+      }
+      return newRounds;
+    });
 
     // Initialize player stats if needed
     setPlayerStats(prev => {
@@ -2499,10 +2513,6 @@ const PickleballTournamentManager = () => {
     const t1Name = `${team1.player1.name}/${team1.player2.name}`;
     const t2Name = `${team2.player1.name}/${team2.player2.name}`;
 
-    if (!window.confirm(`Assign Teamed Match?\n\n${t1Name}\nvs\n${t2Name}\n\nDiff: ${Math.abs(team1.avgRating - team2.avgRating).toFixed(2)}`)) {
-      return;
-    }
-
     const match = {
       id: uid(),
       court: courtNumber,
@@ -2533,6 +2543,17 @@ const PickleballTournamentManager = () => {
         ? { ...c, status: 'playing', currentMatch: match }
         : c
     ));
+
+    // Immediately add to rounds so score cards appear in history
+    setRounds(prev => {
+      const newRounds = [...prev];
+      if (newRounds.length === 0) {
+        newRounds.push([match]);
+      } else {
+        newRounds[newRounds.length - 1] = [...newRounds[newRounds.length - 1], match];
+      }
+      return newRounds;
+    });
 
     // Initialize team stats if needed
     setTeamStats(prev => {
