@@ -2445,35 +2445,42 @@ const PickleballTournamentManager = () => {
       return alert('Need at least 2 available players (not currently playing)');
     }
 
-    // Sort by priority (players who have played least)
+    // Sort by priority (players who have played least / sat out most)
     const sortedAvailable = [...availablePlayers].sort((a, b) => {
       const statsA = playerStats[a.id] || { roundsPlayed: 0, roundsSatOut: 0 };
       const statsB = playerStats[b.id] || { roundsPlayed: 0, roundsSatOut: 0 };
       return statsA.roundsPlayed - statsB.roundsPlayed || statsB.roundsSatOut - statsA.roundsSatOut;
     });
 
-    let player1, player2;
+    // Pick player 1 (highest priority)
+    const player1 = sortedAvailable[0];
 
-    // Apply skill separation if enabled
+    // Enforce same-gender: only consider opponents of the same gender
+    const sameGenderCandidates = sortedAvailable.slice(1).filter(p => p.gender === player1.gender);
+
+    if (sameGenderCandidates.length === 0) {
+      const genderLabel = player1.gender === 'female' ? 'female' : 'male';
+      return alert(
+        `Cannot assign singles match: ${player1.name} is ${genderLabel} but there are no other ${genderLabel} players available. ` +
+        `Singles matches require same-gender opponents.`
+      );
+    }
+
+    let player2;
+
     if (separateBySkill && presentPlayers.length >= 8) {
-      // Start with the highest priority player
-      player1 = sortedAvailable[0];
-
-      // Filter for players who can play with player1 (within ±1 skill level)
-      const compatiblePlayers = sortedAvailable.slice(1).filter(p => canPlayTogether(player1, p));
-
-      if (compatiblePlayers.length > 0) {
-        // Select the highest priority compatible player
-        player2 = compatiblePlayers[0];
+      // Try to find a skill-compatible same-gender opponent first
+      const skillCompatible = sameGenderCandidates.filter(p => canPlayTogether(player1, p));
+      if (skillCompatible.length > 0) {
+        player2 = skillCompatible[0];
       } else {
-        // No compatible players, fall back to next available
-        console.warn('No skill-compatible players for singles match, using mixed pairing');
-        player2 = sortedAvailable[1];
+        // No skill-compatible same-gender player — use any same-gender player
+        console.warn('No skill-compatible same-gender player found for singles, using closest same-gender player');
+        player2 = sameGenderCandidates[0];
       }
     } else {
-      // No skill separation, use traditional pairing
-      player1 = sortedAvailable[0];
-      player2 = sortedAvailable[1];
+      // No skill separation — pick highest-priority same-gender player
+      player2 = sameGenderCandidates[0];
     }
 
     const match = {
