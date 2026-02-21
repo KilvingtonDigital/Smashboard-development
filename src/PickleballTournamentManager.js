@@ -533,8 +533,9 @@ const generateRoundRobinRound = (presentPlayers, courts, playerStats, currentRou
         matches.forEach(match => {
           [...(match.team1 || []), ...(match.team2 || [])].forEach(p => {
             const pSatOut = groundTruthSatOut[p.id] || 0;
-            if (pSatOut >= needsInSatOut) return;
+            if (pSatOut >= needsInSatOut) return; // must have sat out less
             const ratingDiff = Math.abs(Number(p.rating) - Number(needsIn.rating));
+            if (ratingDiff > 0.5) return; // rating gate: no cross-group swaps
             const swapScore = ratingDiff * 10 + pSatOut;
             if (swapScore < bestSwapScore) { bestSwapScore = swapScore; swapCandidate = { player: p, match }; }
           });
