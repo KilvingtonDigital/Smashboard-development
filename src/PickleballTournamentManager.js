@@ -30,13 +30,6 @@ const avg = (t) => (t[0].rating + t[1].rating) / 2;
 
 /* ---- Build export payload ---- */
 const buildResults = (players, rounds, meta, kotStats = null) => {
-  // DIAGNOSTIC: log score data at export time
-  console.log('[buildResults] Exporting rounds:', rounds.length, 'total rounds');
-  rounds.forEach((r, rIdx) => {
-    r.forEach((m, mIdx) => {
-      console.log(`[buildResults] Round ${rIdx + 1} Match ${mIdx + 1} id=${m.id} status=${m.status} score1=${m.score1} score2=${m.score2} g1=${m.game1Score1}-${m.game1Score2} g2=${m.game2Score1}-${m.game2Score2} g3=${m.game3Score1}-${m.game3Score2}`);
-    });
-  });
   const matches = [];
   rounds.forEach((r, rIdx) =>
     r.forEach((m) => {
@@ -106,7 +99,6 @@ const toCSV = (results) => {
   const header = [
     'round', 'court', 'court_level', 'game_format',
     't1_p1', 't1_p1_rating', 't1_p2', 't1_p2_rating',
-    't2_p1', 't2_p1_rating', 't2_p2', 't2_p2_rating',
     't2_p1', 't2_p1_rating', 't2_p2', 't2_p2_rating',
     'match_format', 'score1', 'score2', 'games_won_t1', 'games_won_t2',
     'game1_t1', 'game1_t2', 'game2_t1', 'game2_t2', 'game3_t1', 'game3_t2',
@@ -916,9 +908,6 @@ const updatePlayerStatsForRound = (playerStats, presentPlayers, matches, roundId
 /* =====================  SINGLES ROUND ROBIN SCHEDULING  ===================== */
 
 const generateSinglesRound = (presentPlayers, courts, playerStats, currentRoundIndex, matchFormat = 'single_match') => {
-  console.log(`\n=== GENERATING SINGLES ROUND ${currentRoundIndex + 1} ===`);
-  console.log(`Present players: ${presentPlayers.length}`);
-
   if (typeof matchFormat === 'undefined') {
     throw new Error('Match format is not defined. Please select a valid match format in Setup.');
   }
@@ -929,10 +918,7 @@ const generateSinglesRound = (presentPlayers, courts, playerStats, currentRoundI
   // Select players based on fairness (who sat out most)
   const playersThisRound = selectPlayersForRound(presentPlayers, updatedStats, maxPlayersPerRound, currentRoundIndex);
 
-  console.log(`Playing: ${playersThisRound.map(p => p.name).join(', ')}`);
-  console.log(`Sitting: ${presentPlayers.filter(p => !playersThisRound.includes(p)).map(p => p.name).join(', ')}`);
-
-  // Create singles matches
+  // Create same-gender singles matches
   const matches = [];
   const usedPlayers = new Set();
 
@@ -940,53 +926,48 @@ const generateSinglesRound = (presentPlayers, courts, playerStats, currentRoundI
     const remaining = playersThisRound.filter(p => !usedPlayers.has(p.id));
     if (remaining.length < 2) break;
 
-    // Find best pair by rating similarity
-    let bestPair = null;
-    let smallestDiff = Infinity;
+    // Pick the first available player and find their best same-gender opponent
+    const player1 = remaining[0];
+    const sameGender = remaining.slice(1).filter(p => p.gender === player1.gender);
 
-    for (let i = 0; i < remaining.length - 1; i++) {
-      for (let j = i + 1; j < remaining.length; j++) {
-        const diff = Math.abs(remaining[i].rating - remaining[j].rating);
-        if (diff < smallestDiff) {
-          smallestDiff = diff;
-          bestPair = [remaining[i], remaining[j]];
-        }
-      }
+    // If no same-gender opponent left, skip this player (they'll sit this round)
+    if (sameGender.length === 0) {
+      usedPlayers.add(player1.id); // mark as "handled" so loop progresses
+      courtIdx--; // retry same court slot with next player
+      continue;
     }
 
-    if (bestPair) {
-      usedPlayers.add(bestPair[0].id);
-      usedPlayers.add(bestPair[1].id);
+    // Among same-gender candidates, pick the one with the closest rating
+    const bestOpponent = sameGender.reduce((best, p) =>
+      Math.abs(p.rating - player1.rating) < Math.abs(best.rating - player1.rating) ? p : best
+    );
 
-      matches.push({
-        id: uid(),
-        court: courtIdx + 1,
-        player1: bestPair[0],
-        player2: bestPair[1],
-        diff: Math.abs(bestPair[0].rating - bestPair[1].rating),
-        score1: '',
-        score2: '',
-        game1Score1: '',
-        game1Score2: '',
-        game2Score1: '',
-        game2Score2: '',
-        game3Score1: '',
-        game3Score2: '',
-        status: 'pending',
-        winner: null,
-        gameFormat: 'singles',
-        matchFormat: (typeof matchFormat !== 'undefined') ? matchFormat : 'single_match'
-      });
-    }
+    usedPlayers.add(player1.id);
+    usedPlayers.add(bestOpponent.id);
+
+    matches.push({
+      id: uid(),
+      court: courtIdx + 1,
+      player1,
+      player2: bestOpponent,
+      diff: Math.abs(player1.rating - bestOpponent.rating),
+      score1: '',
+      score2: '',
+      game1Score1: '',
+      game1Score2: '',
+      game2Score1: '',
+      game2Score2: '',
+      game3Score1: '',
+      game3Score2: '',
+      status: 'pending',
+      winner: null,
+      gameFormat: 'singles',
+      matchFormat: matchFormat
+    });
   }
 
   updatePlayerStatsForSinglesRound(updatedStats, presentPlayers, matches, currentRoundIndex);
   Object.assign(playerStats, updatedStats);
-
-  console.log(`\n=== SINGLES ROUND ${currentRoundIndex + 1} SUMMARY ===`);
-  console.log(`Courts used: ${matches.length}`);
-  console.log(`Players playing: ${matches.length * 2}`);
-  console.log(`Players sitting: ${presentPlayers.length - matches.length * 2}`);
 
   return matches;
 };
@@ -2072,7 +2053,44 @@ const PickleballTournamentManager = () => {
   const [endOpen, setEndOpen] = useState(false);
   const [exportedThisSession, setExportedThisSession] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [tournamentName, setTournamentName] = useState('');
 
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const raw = localStorage.getItem('pb_session');
+    if (!raw) return;
+    try {
+      const snap = JSON.parse(raw);
+      if (snap.rounds?.length) {
+        if (snap.players) setPlayers(snap.players);
+        if (snap.rounds) setRounds(snap.rounds);
+        if (snap.playerStats) setPlayerStats(snap.playerStats);
+        if (snap.kotStats) setKotStats(snap.kotStats);
+        if (snap.teamStats) setTeamStats(snap.teamStats);
+        if (snap.teams) setTeams(snap.teams);
+        if (typeof snap.currentRound === 'number') setCurrentRound(snap.currentRound);
+        if (snap.locked) setLocked(snap.locked);
+        if (snap.tournamentName) setTournamentName(snap.tournamentName);
+        if (snap.meta) {
+          if (snap.meta.courts) setCourts(snap.meta.courts);
+          if (snap.meta.sessionMinutes) setSessionMinutes(snap.meta.sessionMinutes);
+          if (snap.meta.minutesPerRound) setMinutesPerRound(snap.meta.minutesPerRound);
+          if (snap.meta.tournamentType) setTournamentType(snap.meta.tournamentType);
+          if (snap.meta.gameFormat) setGameFormat(snap.meta.gameFormat);
+          if (snap.meta.matchFormat) setMatchFormat(snap.meta.matchFormat);
+          if (typeof snap.meta.separateBySkill === 'boolean') setSeparateBySkill(snap.meta.separateBySkill);
+        }
+        // Restore court states — mark any in-progress matches back to playing
+        if (snap.courtStates) setCourtStates(snap.courtStates);
+        setTab('schedule');
+        console.log('[Session] Restored session from localStorage:', snap.rounds.length, 'rounds');
+      }
+    } catch (e) {
+      console.warn('[Session] Failed to restore session from localStorage:', e);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch roster from DB on login
   useEffect(() => {
     const fetchRoster = async () => {
       if (user) {
@@ -2092,7 +2110,7 @@ const PickleballTournamentManager = () => {
             localStorage.setItem('migration_completed', 'true');
           }
         } catch (error) {
-          console.error("Failed to fetch players", error);
+          console.error('Failed to fetch players', error);
         }
       }
     };
@@ -2103,24 +2121,27 @@ const PickleballTournamentManager = () => {
     localStorage.setItem('pb_roster', JSON.stringify(players));
   }, [players]);
 
-  // Initialize court states when courts number changes
+
+  // Initialize court states when courts number changes — skip if states already exist (e.g. restored from session)
   useEffect(() => {
+    if (courtStates.length > 0) return;
     const newCourtStates = Array.from({ length: courts }, (_, i) => ({
       courtNumber: i + 1,
-      status: 'ready', // ready, playing, cleaning
+      status: 'ready',
       currentMatch: null
     }));
     setCourtStates(newCourtStates);
-  }, [courts]);
+  }, [courts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const snapshot = {
       players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates,
+      tournamentName,
       meta: { courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, ts: Date.now() },
       locked
     };
     localStorage.setItem('pb_session', JSON.stringify(snapshot));
-  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked]);
+  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -2132,31 +2153,6 @@ const PickleballTournamentManager = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [rounds.length, exportedThisSession]);
 
-  /* =====================  DEBUG LOGGING  ===================== */
-  useEffect(() => {
-    console.log(' [DEBUG] Players State Changed:', players.length, 'players');
-    // Log if players are added/removed to see if "new players create" is real
-    console.log(' [DEBUG] Names:', players.map(p => p.name).join(', '));
-  }, [players]);
-
-  useEffect(() => {
-    console.log(' [DEBUG] Court States Changed:', courtStates);
-    courtStates.forEach(c => {
-      if (c.currentMatch) {
-        console.log(`   - Court ${c.courtNumber} [${c.status}]: Match ${c.currentMatch.id} (${c.currentMatch.gameFormat})`);
-        if (c.currentMatch.gameFormat === 'singles') {
-          console.log(`     P1: ${c.currentMatch.player1?.name}, P2: ${c.currentMatch.player2?.name}`);
-        } else {
-          const t1 = c.currentMatch.team1?.map(p => p.name).join('/');
-          const t2 = c.currentMatch.team2?.map(p => p.name).join('/');
-          console.log(`     T1: ${t1} vs T2: ${t2}`);
-        }
-      } else {
-        console.log(`   - Court ${c.courtNumber} [${c.status}]: Empty`);
-      }
-    });
-  }, [courtStates]);
-  /* ========================================================== */
 
   const presentPlayers = useMemo(() => players.filter((p) => p.present !== false), [players]);
 
@@ -3014,6 +3010,78 @@ const PickleballTournamentManager = () => {
     ));
   };
 
+  // Undo the most recently completed match — reverts it to pending and restores it to its court
+  const undoLastMatch = () => {
+    if (!window.confirm('Undo the last completed match? This will revert its scores and winner.')) return;
+
+    // Find the most recently completed match across all rounds
+    let targetMatch = null;
+    let targetRoundIdx = -1;
+    let targetMatchIdx = -1;
+
+    for (let r = rounds.length - 1; r >= 0; r--) {
+      for (let m = rounds[r].length - 1; m >= 0; m--) {
+        if (rounds[r][m].status === 'completed') {
+          targetMatch = rounds[r][m];
+          targetRoundIdx = r;
+          targetMatchIdx = m;
+          break;
+        }
+      }
+      if (targetMatch) break;
+    }
+
+    if (!targetMatch) return alert('No completed matches to undo.');
+
+    // Revert the match back to pending
+    const revertedMatch = {
+      ...targetMatch,
+      status: 'pending',
+      winner: null,
+      score1: '',
+      score2: '',
+      game1Score1: '',
+      game1Score2: '',
+      game2Score1: '',
+      game2Score2: '',
+      game3Score1: '',
+      game3Score2: '',
+      endTime: null,
+      durationMinutes: null
+    };
+
+    // Restore in rounds
+    setRounds(prev => {
+      const updated = prev.map(r => [...r]);
+      updated[targetRoundIdx][targetMatchIdx] = revertedMatch;
+      return updated;
+    });
+
+    // Put the match back on its court as 'playing'
+    setCourtStates(prev => prev.map(c =>
+      c.courtNumber === revertedMatch.court
+        ? { ...c, status: 'playing', currentMatch: revertedMatch }
+        : c
+    ));
+
+    // Decrement roundsPlayed for each player in the match
+    setPlayerStats(prev => {
+      const updated = { ...prev };
+      const playerIds = revertedMatch.gameFormat === 'singles'
+        ? [revertedMatch.player1?.id, revertedMatch.player2?.id].filter(Boolean)
+        : [...(revertedMatch.team1 || []), ...(revertedMatch.team2 || [])].map(p => p.id);
+      playerIds.forEach(id => {
+        if (updated[id]) {
+          updated[id] = {
+            ...updated[id],
+            roundsPlayed: Math.max(0, (updated[id].roundsPlayed || 1) - 1)
+          };
+        }
+      });
+      return updated;
+    });
+  };
+
   const generateNextRound = () => {
     try {
       console.log('generateNextRound called');
@@ -3052,6 +3120,15 @@ const PickleballTournamentManager = () => {
             };
           });
           newRound = generateRoundRobinRound(presentPlayers, courts, schedulingStats, currentRound, separateBySkill, effectiveMatchFormat, preferMixedDoubles, femaleRestInterval, rounds);
+        }
+
+        if (!newRound || newRound.length === 0) {
+          if (gameFormat === 'singles') {
+            alert('Could not generate any singles matches. Make sure you have at least 2 present players of the same gender (male-male or female-female).');
+          } else {
+            alert('Could not generate any matches. Check that you have enough present players and courts configured.');
+          }
+          return;
         }
 
         if (newRound && newRound.length > 0) {
@@ -3484,6 +3561,15 @@ const PickleballTournamentManager = () => {
             <Card>
               <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Session</h3>
               <div className="space-y-3">
+                <Field label="Tournament name">
+                  <input
+                    type="text"
+                    placeholder="e.g. Friday Night Pickleball"
+                    value={tournamentName}
+                    onChange={(e) => setTournamentName(e.target.value)}
+                    className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                  />
+                </Field>
                 <Field label="Courts">
                   <input
                     type="number"
@@ -4174,6 +4260,16 @@ const PickleballTournamentManager = () => {
                         onClick={generateNextRound}
                       >
                         Start New Round (Round {currentRound + 1})
+                      </Button>
+                    </div>
+                  )}
+                  {rounds.some(r => r.some(m => m.status === 'completed')) && (
+                    <div className="mt-2 pt-2 border-t border-brand-gray">
+                      <Button
+                        className="bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs py-1 w-full"
+                        onClick={undoLastMatch}
+                      >
+                        ↩ Undo Last Completed Match
                       </Button>
                     </div>
                   )}
