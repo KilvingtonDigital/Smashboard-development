@@ -30,6 +30,13 @@ const avg = (t) => (t[0].rating + t[1].rating) / 2;
 
 /* ---- Build export payload ---- */
 const buildResults = (players, rounds, meta, kotStats = null) => {
+  // DIAGNOSTIC: log score data at export time
+  console.log('[buildResults] Exporting rounds:', rounds.length, 'total rounds');
+  rounds.forEach((r, rIdx) => {
+    r.forEach((m, mIdx) => {
+      console.log(`[buildResults] Round ${rIdx + 1} Match ${mIdx + 1} id=${m.id} status=${m.status} score1=${m.score1} score2=${m.score2} g1=${m.game1Score1}-${m.game1Score2} g2=${m.game2Score1}-${m.game2Score2} g3=${m.game3Score1}-${m.game3Score2}`);
+    });
+  });
   const matches = [];
   rounds.forEach((r, rIdx) =>
     r.forEach((m) => {
@@ -69,12 +76,12 @@ const buildResults = (players, rounds, meta, kotStats = null) => {
         score1: s1,
         score2: s2,
         // Include individual game scores for best of 3
-        game1Score1: m.game1Score1 || '',
-        game1Score2: m.game1Score2 || '',
-        game2Score1: m.game2Score1 || '',
-        game2Score2: m.game2Score2 || '',
-        game3Score1: m.game3Score1 || '',
-        game3Score2: m.game3Score2 || '',
+        game1Score1: m.game1Score1 ?? '',
+        game1Score2: m.game1Score2 ?? '',
+        game2Score1: m.game2Score1 ?? '',
+        game2Score2: m.game2Score2 ?? '',
+        game3Score1: m.game3Score1 ?? '',
+        game3Score2: m.game3Score2 ?? '',
         matchFormat: m.matchFormat || 'single_match',
         status: m.status,
         winner: winner,
@@ -3235,38 +3242,29 @@ const PickleballTournamentManager = () => {
     let side1Wins = 0;
     let side2Wins = 0;
 
-    // Game 1
-    const g1s1 = typeof m.game1Score1 === 'number' ? m.game1Score1 : Number(m.game1Score1) || 0;
-    const g1s2 = typeof m.game1Score2 === 'number' ? m.game1Score2 : Number(m.game1Score2) || 0;
-    if (g1s1 > g1s2) {
-      side1Wins++;
-      console.log(`Game 1: Team 1 wins (${g1s1}-${g1s2})`);
-    } else if (g1s2 > g1s1) {
-      side2Wins++;
-      console.log(`Game 1: Team 2 wins (${g1s1}-${g1s2})`);
+    // Game 1 — use null check so 0 is a valid score
+    const g1s1 = m.game1Score1 === '' || m.game1Score1 == null ? null : Number(m.game1Score1);
+    const g1s2 = m.game1Score2 === '' || m.game1Score2 == null ? null : Number(m.game1Score2);
+    if (g1s1 !== null && g1s2 !== null) {
+      if (g1s1 > g1s2) { side1Wins++; console.log(`Game 1: Team 1 wins (${g1s1}-${g1s2})`); }
+      else if (g1s2 > g1s1) { side2Wins++; console.log(`Game 1: Team 2 wins (${g1s1}-${g1s2})`); }
     }
 
-    // Game 2
-    const g2s1 = typeof m.game2Score1 === 'number' ? m.game2Score1 : Number(m.game2Score1) || 0;
-    const g2s2 = typeof m.game2Score2 === 'number' ? m.game2Score2 : Number(m.game2Score2) || 0;
-    if (g2s1 > g2s2) {
-      side1Wins++;
-      console.log(`Game 2: Team 1 wins (${g2s1}-${g2s2})`);
-    } else if (g2s2 > g2s1) {
-      side2Wins++;
-      console.log(`Game 2: Team 2 wins (${g2s1}-${g2s2})`);
+    // Game 2 — use null check so 0 is a valid score
+    const g2s1 = m.game2Score1 === '' || m.game2Score1 == null ? null : Number(m.game2Score1);
+    const g2s2 = m.game2Score2 === '' || m.game2Score2 == null ? null : Number(m.game2Score2);
+    if (g2s1 !== null && g2s2 !== null) {
+      if (g2s1 > g2s2) { side1Wins++; console.log(`Game 2: Team 1 wins (${g2s1}-${g2s2})`); }
+      else if (g2s2 > g2s1) { side2Wins++; console.log(`Game 2: Team 2 wins (${g2s1}-${g2s2})`); }
     }
 
-    // Game 3 (if needed)
+    // Game 3 (if needed) — use null check so 0 is a valid score
     if (side1Wins < 2 && side2Wins < 2) {
-      const g3s1 = typeof m.game3Score1 === 'number' ? m.game3Score1 : Number(m.game3Score1) || 0;
-      const g3s2 = typeof m.game3Score2 === 'number' ? m.game3Score2 : Number(m.game3Score2) || 0;
-      if (g3s1 > g3s2) {
-        side1Wins++;
-        console.log(`Game 3: Team 1 wins (${g3s1}-${g3s2})`);
-      } else if (g3s2 > g3s1) {
-        side2Wins++;
-        console.log(`Game 3: Team 2 wins (${g3s1}-${g3s2})`);
+      const g3s1 = m.game3Score1 === '' || m.game3Score1 == null ? null : Number(m.game3Score1);
+      const g3s2 = m.game3Score2 === '' || m.game3Score2 == null ? null : Number(m.game3Score2);
+      if (g3s1 !== null && g3s2 !== null) {
+        if (g3s1 > g3s2) { side1Wins++; console.log(`Game 3: Team 1 wins (${g3s1}-${g3s2})`); }
+        else if (g3s2 > g3s1) { side2Wins++; console.log(`Game 3: Team 2 wins (${g3s1}-${g3s2})`); }
       }
     }
 
