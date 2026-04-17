@@ -410,6 +410,7 @@ const PickleballTournamentManager = () => {
 
   const [tab, setTab] = useState('setup');
   const [endOpen, setEndOpen] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [exportedThisSession, setExportedThisSession] = useState(false);
   const [locked, setLocked] = useState(false);
   const [tournamentName, setTournamentName] = useState('');
@@ -3375,57 +3376,64 @@ const PickleballTournamentManager = () => {
               </div>
 
               <div className="mt-4 flex flex-col sm:flex-row gap-2">
-                <Button className="bg-brand-gray text-brand-primary hover:bg-brand-gray/80 w-full" onClick={() => setEndOpen(false)}>
-                  Keep Editing
-                </Button>
-                <Button
-                  className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
-                  onClick={() => {
-                    // If they haven't exported, warn them strongly
-                    // If they have exported, still confirm but with a gentler message
-                    const confirmMessage = !exportedThisSession
-                      ? 'You have not exported your data! Clear all data anyway? This cannot be undone.'
-                      : 'Clear all data? This cannot be undone.';
-
-                    if (window.confirm(confirmMessage)) {
-                      // 1. Raise guard so the autosave useEffect doesn't race
-                      isClearingSession.current = true;
-                      // 2. Nuke localStorage immediately before state resets trigger re-renders
-                      localStorage.removeItem('pb_session');
-                      localStorage.removeItem('pb_roster');
-                      // 3. Overwrite cloud with empty state immediately (don't just DELETE —
-                      //    PUT wins the race if the DELETE is slow, and the restore guard
-                      //    (rounds.length === 0) will skip it naturally on next load)
-                      saveSession({ rounds: [], players: [], teams: [], playerStats: {}, kotStats: {}, teamStats: {}, kotTeamStats: {}, courtStates: [], currentRound: 0 });
-                      clearSession();
-                      // 4. Reset all React state
-                      setPlayers([]);
-                      setTeams([]);
-                      setKotAutoTeams([]);
-                      setRounds([]);
-                      setPlayerStats({});
-                      setTeamStats({});
-                      setKotStats({});
-                      setKotTeamStats({});
-                      setCurrentRound(0);
-                      setExportedThisSession(false);
-                      setLocked(false);
-                      setTeamBuilderSelected(null);
-                      const resetCourts = Array.from({ length: courts }, (_, i) => ({
-                        courtNumber: i + 1,
-                        status: 'ready',
-                        currentMatch: null
-                      }));
-                      setCourtStates(resetCourts);
-                      setEndOpen(false);
-                      setTab('setup');
-                      // 5. Lower guard after React flush settles
-                      setTimeout(() => { isClearingSession.current = false; }, 500);
-                    }
-                  }}
-                >
-                  End & Clear
-                </Button>
+                {!confirmClearOpen ? (
+                  <>
+                    <Button className="bg-brand-gray text-brand-primary hover:bg-brand-gray/80 w-full" onClick={() => setEndOpen(false)}>
+                      Keep Editing
+                    </Button>
+                    <Button
+                      className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
+                      onClick={() => setConfirmClearOpen(true)}
+                    >
+                      End & Clear
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex flex-col w-full gap-2">
+                    <p className="text-sm font-bold text-red-500 text-center mb-1">
+                      {!exportedThisSession ? '⚠️ You have not exported! Clear anyway?' : 'Clear all data?'}
+                    </p>
+                    <div className="flex flex-row gap-2">
+                      <Button className="bg-brand-gray text-brand-primary hover:bg-brand-gray/80 w-full" onClick={() => setConfirmClearOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        className="bg-red-500 text-white hover:bg-red-600 w-full font-bold"
+                        onClick={() => {
+                          isClearingSession.current = true;
+                          localStorage.removeItem('pb_session');
+                          localStorage.removeItem('pb_roster');
+                          saveSession({ rounds: [], players: [], teams: [], playerStats: {}, kotStats: {}, teamStats: {}, kotTeamStats: {}, courtStates: [], currentRound: 0 });
+                          clearSession();
+                          setPlayers([]);
+                          setTeams([]);
+                          setKotAutoTeams([]);
+                          setRounds([]);
+                          setPlayerStats({});
+                          setTeamStats({});
+                          setKotStats({});
+                          setKotTeamStats({});
+                          setCurrentRound(0);
+                          setExportedThisSession(false);
+                          setLocked(false);
+                          setTeamBuilderSelected(null);
+                          const resetCourts = Array.from({ length: courts }, (_, i) => ({
+                            courtNumber: i + 1,
+                            status: 'ready',
+                            currentMatch: null
+                          }));
+                          setCourtStates(resetCourts);
+                          setConfirmClearOpen(false);
+                          setEndOpen(false);
+                          setTab('setup');
+                          setTimeout(() => { isClearingSession.current = false; }, 500);
+                        }}
+                      >
+                        Yes, Clear Everything
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
