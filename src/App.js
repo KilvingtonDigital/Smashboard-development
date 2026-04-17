@@ -5,7 +5,7 @@ import AuthPage from './components/AuthPage';
 import MigrationPrompt from './components/MigrationPrompt';
 
 import ResetPassword from './components/ResetPassword';
-
+import ErrorBoundary from './components/ErrorBoundary';
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
 
@@ -16,6 +16,24 @@ function AppContent() {
     if (token) {
       return <ResetPassword token={token} onResetSuccess={() => window.location.href = '/'} />;
     }
+  }
+
+  // Backdoor recovery route
+  if (path === '/recovery') {
+    localStorage.removeItem('pb_session');
+    localStorage.removeItem('pb_roster');
+    localStorage.removeItem('migration_completed');
+    localStorage.removeItem('token');
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="bg-dark-gray p-6 rounded-xl border border-lime text-center max-w-sm w-full">
+          <div className="text-4xl mb-4">🧹</div>
+          <h1 className="text-xl text-lime font-bold mb-4">Recovery Mode Initiated</h1>
+          <p className="text-gray text-sm mb-6">All local session data and authentication tokens have been permanently purged. Your application state is completely clean.</p>
+          <a href="/" className="inline-block w-full bg-lime text-black font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transition-colors">Return to Login</a>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
@@ -52,8 +70,10 @@ function AppContent() {
         </button>
       </div>
 
-      {/* Main app */}
-      <PickleballTournamentManager />
+      {/* Main app with Error Safeguard */}
+      <ErrorBoundary>
+        <PickleballTournamentManager />
+      </ErrorBoundary>
     </div>
   );
 }

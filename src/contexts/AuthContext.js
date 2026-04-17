@@ -19,12 +19,19 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   const fetchCurrentUser = async () => {
+    const controller = new AbortController();
+    // 8 second strict timeout to prevent indefinite UI hangs
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const response = await fetch(`${API_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -34,7 +41,11 @@ export const AuthProvider = ({ children }) => {
         logout();
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Failed to fetch user:', error);
+      if (error.name === 'AbortError') {
+        console.error('Request timed out after 8s. The backend may be offline or sleeping.');
+      }
       logout();
     } finally {
       setLoading(false);
