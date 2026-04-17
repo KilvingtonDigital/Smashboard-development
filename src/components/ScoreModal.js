@@ -181,13 +181,55 @@ export default function ScoreModal({
 
                 {/* Quick Win buttons — score-aware */}
                 {rIdx >= 0 && (() => {
-                    // Determine who is currently leading from the live score
-                    const s1 = Number(liveMatch.score1);
-                    const s2 = Number(liveMatch.score2);
-                    const hasScores = liveMatch.score1 !== '' && liveMatch.score2 !== '' &&
-                        !isNaN(s1) && !isNaN(s2) && (s1 > 0 || s2 > 0);
-                    const team1Winning = hasScores && s1 > s2;
-                    const team2Winning = hasScores && s2 > s1;
+                    let hasScores = false;
+                    let team1Winning = false;
+                    let team2Winning = false;
+
+                    if (isBo3) {
+                        const g1s1 = liveMatch.game1Score1 === '' ? null : Number(liveMatch.game1Score1);
+                        const g1s2 = liveMatch.game1Score2 === '' ? null : Number(liveMatch.game1Score2);
+                        const g2s1 = liveMatch.game2Score1 === '' ? null : Number(liveMatch.game2Score1);
+                        const g2s2 = liveMatch.game2Score2 === '' ? null : Number(liveMatch.game2Score2);
+
+                        if (g1s1 !== null && g1s2 !== null && g2s1 !== null && g2s2 !== null) {
+                            let t1g = 0, t2g = 0;
+                            if (g1s1 > g1s2) t1g++; else if (g1s2 > g1s1) t2g++;
+                            if (g2s1 > g2s2) t1g++; else if (g2s2 > g2s1) t2g++;
+                            
+                            if (t1g === 1 && t2g === 1) {
+                                // Needs game 3
+                                const g3s1 = liveMatch.game3Score1 === '' ? null : Number(liveMatch.game3Score1);
+                                const g3s2 = liveMatch.game3Score2 === '' ? null : Number(liveMatch.game3Score2);
+                                if (g3s1 !== null && g3s2 !== null) {
+                                    hasScores = true;
+                                    if (g3s1 > g3s2) t1g++; else if (g3s2 > g3s1) t2g++;
+                                }
+                            } else {
+                                hasScores = true;
+                            }
+                            
+                            if (hasScores) {
+                                team1Winning = t1g > t2g;
+                                team2Winning = t2g > t1g;
+                            }
+                        }
+                    } else {
+                        const s1 = liveMatch.score1 === '' ? null : Number(liveMatch.score1);
+                        const s2 = liveMatch.score2 === '' ? null : Number(liveMatch.score2);
+                        hasScores = s1 !== null && s2 !== null;
+                        if (hasScores) {
+                            team1Winning = s1 > s2;
+                            team2Winning = s2 > s1;
+                        }
+                    }
+
+                    if (!hasScores) {
+                        return (
+                            <div style={{ textAlign: 'center', color: '#888', fontSize: 13, marginBottom: 20, fontStyle: 'italic' }}>
+                                Explicitly enter the scores above to specify a winner.
+                            </div>
+                        );
+                    }
 
                     const btnBase = { padding: '10px 8px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', lineHeight: 1.3, transition: 'opacity 0.15s' };
                     const btn1Style = {
