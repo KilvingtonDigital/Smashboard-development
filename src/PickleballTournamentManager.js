@@ -377,7 +377,7 @@ const canPlayTogether = (player1, player2) => {
 const PickleballTournamentManager = () => {
   const { user } = useAuth();
   const api = useAPI();
-  const { loadSession, saveSession, clearSession } = useSessionSync();
+  const { loadSession, saveSession, forceSaveSession, clearSession } = useSessionSync();
   const isClearingSession = useRef(false); // prevents autosave race during End & Clear
   const sessionRestoredRef = useRef(false); // prevents autosave from firing before restore
   const [players, setPlayers] = useState([]);

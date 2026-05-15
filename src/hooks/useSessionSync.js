@@ -59,6 +59,26 @@ export function useSessionSync() {
         }, DEBOUNCE_MS);
     }, []);
 
+    const forceSaveSession = useCallback(async (snapshot) => {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        const token = getToken();
+        if (!token) return;
+
+        try {
+            await fetch(API_URL + '/api/session', {
+                method: 'PUT',
+                headers: {
+                    Authorization: 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(snapshot)
+            });
+            console.log('[SessionSync] Session force-saved to cloud.');
+        } catch (err) {
+            console.warn('[SessionSync] forceSaveSession failed:', err);
+        }
+    }, []);
+
     const clearSession = useCallback(async () => {
         // Cancel any pending debounced save first
         if (debounceTimer.current) {
@@ -80,5 +100,5 @@ export function useSessionSync() {
         }
     }, []);
 
-    return { loadSession, saveSession, clearSession };
+    return { loadSession, saveSession, forceSaveSession, clearSession };
 }
