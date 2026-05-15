@@ -502,36 +502,43 @@ const PickleballTournamentManager = () => {
       }
     };
     // Always lift the autosave guard once restore completes (or fails)
-    restoreSession().finally(() => { sessionRestoredRef.current = true; });
-  }, []); // eslint-disable-line
+    restoreSession().finally(() => { 
+        sessionRestoredRef.current = true; 
+        setPlayers(currentP => {
+            fetchRosterFromDB(currentP.length);
+            return currentP;
+        });
+    });
+  }, [user]); // Add user to dependency so it re-runs if user changes
 
-  // Fetch roster from DB on login — only when session has NOT already restored players
-  // (prevents DB fetch from overwriting restored player presence states)
-  useEffect(() => {
-    const fetchRoster = async () => {
-      if (user) {
-        try {
-          const { success, data } = await api.players.getAll();
-          if (success && data.players) {
-            const dbPlayers = data.players.map(p => ({
-              id: p.id,
-              name: p.player_name,
-              rating: Number(p.dupr_rating) || 2.5,
-              gender: p.gender || 'male',
-              present: true
-            }));
-            // Only overwrite players from DB if the session had no players
-            // (avoids resetting presence states set during roll call)
-            setPlayers(prev => prev.length === 0 ? dbPlayers : prev);
-            localStorage.setItem('migration_completed', 'true');
+  // Fetch roster from DB — manually called after session restore completes
+  const fetchRosterFromDB = async (currentPlayersLength) => {
+    if (user) {
+      try {
+        const { success, data } = await api.players.getAll();
+        if (success && data.players && data.players.length > 0) {
+          const dbPlayers = data.players.map(p => ({
+            id: p.id,
+            name: p.player_name,
+            rating: Number(p.dupr_rating) || 2.5,
+            gender: p.gender || 'male',
+            present: false // User requested default to false so manager must check them in
+          }));
+          
+          if (currentPlayersLength === 0 && !sessionStorage.getItem('rosterPrompted')) {
+              sessionStorage.setItem('rosterPrompted', 'true');
+              const doLoad = window.confirm('You have ' + data.players.length + ' players saved in your database.\n\nWould you like to auto-populate them into your Roster?\n(You will need to manually mark them as Present on the Roster tab)');
+              if (doLoad) {
+                  setPlayers(dbPlayers);
+              }
           }
-        } catch (error) {
-          console.error('Failed to fetch players', error);
+          localStorage.setItem('migration_completed', 'true');
         }
+      } catch (error) {
+        console.error('Failed to fetch players', error);
       }
-    };
-    fetchRoster();
-  }, [user]); // eslint-disable-line
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('pb_roster', JSON.stringify(players));
@@ -587,14 +594,12 @@ const PickleballTournamentManager = () => {
     };
     localStorage.setItem('pb_session', JSON.stringify(snapshot));
     // Also save to cloud (debounced 3s) so other devices / refreshes pick it up
-    if (rounds.length > 0) {
-      saveSession({
-        ...snapshot,
-        tournamentName: tournamentName || 'Active Session',
-        tournamentType: tournamentType || 'round_robin',
-        numCourts: courts
-      });
-    }
+    saveSession({
+      ...snapshot,
+      tournamentName: tournamentName || 'Active Session',
+      tournamentType: tournamentType || 'round_robin',
+      numCourts: courts
+    });
   }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName]); // eslint-disable-line
 
   useEffect(() => {
@@ -1885,9 +1890,12 @@ const PickleballTournamentManager = () => {
     setKotAutoTeams([]);
     setTeamStats({});
     setLocked(false);
-    // Clear from cloud so a refresh or other device starts fresh
-    clearSession();
-    localStorage.removeItem('pb_session');
+    // Securely overwrite cloud session with cleared state
+    const currentP = typeof players !== 'undefined' ? players : [];
+    forceSaveSession({ rounds: [], players: currentP, teams: [], playerStats: {}, kotStats: {}, teamStats: {}, kotTeamStats: {}, courtStates: [], currentRound: 0 }).then(() => {
+        clearSession();
+        localStorage.removeItem('pb_session');
+    });
   };
 
   const updateScore = (rIdx, mIdx, which, raw) => {
