@@ -41,7 +41,8 @@ exports.register = async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         username: user.username,
-        email: user.email
+        email: user.email,
+        registrationSlug: user.registration_slug
       },
       token
     });
@@ -83,6 +84,14 @@ exports.login = async (req, res) => {
     // Generate token
     const token = generateToken(user);
 
+    // Generate slug if it doesn't exist
+    let registrationSlug = user.registration_slug;
+    if (!registrationSlug) {
+      const crypto = require('crypto');
+      registrationSlug = crypto.randomBytes(4).toString('hex').substring(0, 6);
+      await User.setRegistrationSlug(user.id, registrationSlug);
+    }
+
     res.json({
       message: 'Login successful',
       user: {
@@ -90,7 +99,8 @@ exports.login = async (req, res) => {
         username: user.username,
         email: user.email,
         firstName: user.first_name,
-        lastName: user.last_name
+        lastName: user.last_name,
+        registrationSlug: registrationSlug
       },
       token
     });
@@ -116,6 +126,8 @@ exports.getCurrentUser = async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
+        registrationSlug: user.registration_slug,
+        organizationName: user.organization_name,
         createdAt: user.created_at
       }
     });

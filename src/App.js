@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import PickleballTournamentManager from './PickleballTournamentManager';
 import AuthPage from './components/AuthPage';
 import MigrationPrompt from './components/MigrationPrompt';
+import PublicRegistration from './components/PublicRegistration';
 
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -15,6 +16,14 @@ function AppContent() {
     const token = path.split('/reset-password/')[1];
     if (token) {
       return <ResetPassword token={token} onResetSuccess={() => window.location.href = '/'} />;
+    }
+  }
+
+  // Check if we are on the public registration route
+  if (path.startsWith('/join/')) {
+    const slug = path.split('/join/')[1];
+    if (slug) {
+      return <PublicRegistration slug={slug} />;
     }
   }
 

@@ -15,12 +15,15 @@ class User {
       const baseHandle = `${firstName.toLowerCase().replace(/\s/g, '')}_${lastName.toLowerCase().replace(/\s/g, '')}`;
       const randomSuffix = Math.random().toString(36).substring(2, 7);
       const username = `${baseHandle}_${randomSuffix}`;
+      
+      const crypto = require('crypto');
+      const registration_slug = crypto.randomBytes(4).toString('hex').substring(0, 6);
 
       const result = await pool.query(
-        `INSERT INTO users (username, email, password_hash, first_name, last_name)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, username, email, first_name, last_name, created_at`,
-        [username, email, password_hash, firstName, lastName]
+        `INSERT INTO users (username, email, password_hash, first_name, last_name, registration_slug)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, username, email, first_name, last_name, registration_slug, created_at`,
+        [username, email, password_hash, firstName, lastName, registration_slug]
       );
 
       return result.rows[0];
@@ -60,8 +63,26 @@ class User {
   // Find user by ID
   static async findById(id) {
     const result = await pool.query(
-      'SELECT id, username, email, first_name, last_name, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, first_name, last_name, registration_slug, organization_name, created_at FROM users WHERE id = $1',
       [id]
+    );
+    return result.rows[0];
+  }
+
+  // Find user by slug
+  static async findByRegistrationSlug(slug) {
+    const result = await pool.query(
+      'SELECT id, first_name, last_name, organization_name FROM users WHERE registration_slug = $1',
+      [slug]
+    );
+    return result.rows[0];
+  }
+
+  // Set registration slug
+  static async setRegistrationSlug(id, slug) {
+    const result = await pool.query(
+      `UPDATE users SET registration_slug = $1 WHERE id = $2 RETURNING registration_slug`,
+      [slug, id]
     );
     return result.rows[0];
   }

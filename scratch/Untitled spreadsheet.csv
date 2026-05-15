@@ -1,0 +1,42 @@
+round,court,court_level,game_format,team1 player 1,t1_p1_rating,team 1 player 2,t1_p2_rating,team 2 player 1,t2_p1_rating,team 2 player 2,t2_p2_rating,,score1,score2,games_won_t1,games_won_t2,game1_t1,game1_t2,game2_t1,game2_t2,game3_t1,game3_t2,winner,points_awarded,start_time,end_time,duration_minutes,Confirmed
+1,1,,doubles,Wendy Phillips,2.8,Celeste lutrario,2.75,Jayden Gilliland,2.8,Jacqueline Gilliland,2.8,,,,0,0,,,,,,,team2,,,2026-04-18T12:11:06.789Z,,
+1,2,,doubles,Carla Ruibal,2.83,Don McMillan,3.45,Jerry DeKeyser,2.46,Keith poindexter,3.49,,,,0,0,,,,,,,team2,,,2026-04-18T12:11:09.212Z,,
+1,3,,doubles,Ken Fan,3,Dan Shinedling,3.23,Kim Argereow,3.23,Philip Moodie,3,,,,0,0,,,,,,,team2,,,2026-04-18T12:11:10.805Z,,
+1,4,,doubles,Julia Richardson,3.8,Patrick See,3.58,Tommy Brickle,3.61,Raj Patel,3.68,,,,0,0,,,,,,,team2,,,2026-04-18T12:11:12.355Z,,
+1,5,,doubles,Carlie Moodie,3,Susan Conger,2.98,Tia Chick,3.23,Marion Acosta,2.53,,,,0,0,,,,,,,team2,,,2026-04-18T12:11:13.759Z,,
+2,1,,doubles,Keith poindexter,3.49,Wendy Phillips,2.8,Jayden Gilliland,2.8,Susan Conger,2.98,,11,7,0,0,,,,,,,team1,,,2026-04-18T12:32:03.474Z,,Confirmed
+2,2,,doubles,Marion Acosta,2.53,Austin Newell,3.42,Don McMillan,3.45,Jerry DeKeyser,2.46,,11,6,0,0,,,,,,,team1,,,2026-04-18T12:26:10.091Z,,Confirmed
+2,3,,doubles,Sophie phillips,3,Dan Shinedling,3.23,Tia Chick,3.23,Carlie Moodie,3,,11,5,0,0,,,,,,,team1,,,2026-04-18T12:28:07.547Z,,Confirmed
+2,4,,doubles,Julia Richardson,3.8,David Faulkner,3.52,Tommy Brickle,3.61,Patrick See,3.58,,11,2,0,0,,,,,,,team1,,,2026-04-18T12:23:41.929Z,,Confirmed
+3,2,,doubles,Dan Shinedling,3.23,Tia Chick,3.23,Kim Argereow,3.23,Austin Newell,3.42,,7,11,0,0,,,,,,,team2,,2026-04-18T12:28:13.894Z,2026-04-18T12:53:14.778Z,25,Confirmed
+3,3,,doubles,Sophie phillips,3,Patrick See,3.58,Philip Moodie,3,David Faulkner,3.52,,11,9,0,0,,,,,,,team1,,2026-04-18T12:28:15.889Z,2026-04-18T12:53:55.097Z,26,Confirmed
+3,4,,doubles,Wayne Hui,3.87,Ricky Whittaker,3.6,Raj Patel,3.68,Julia Richardson,3.8,,13,11,0,0,,,,,,,team1,,2026-04-18T12:28:17.726Z,2026-04-18T12:52:47.357Z,24,Confirmed
+3,1,,doubles,Wendy Phillips,2.8,Susan Conger,2.98,Jacqueline Gilliland,2.8,Carla Ruibal,2.83,,11,7,0,0,,,,,,,team1,,2026-04-18T12:32:25.402Z,2026-04-18T12:53:36.638Z,21,
+4,1,,doubles,Wendy Phillips,2.8,Susan Conger,2.98,Kim Argereow,3.23,Jacqueline Gilliland,2.8,,11,8,0,0,,,,,,,team1,,2026-04-18T12:55:52.418Z,2026-04-18T13:14:39.019Z,19,Confirmed 
+4,2,,doubles,Carla Ruibal,2.83,Marylou Brennan,2.8,Austin Newell,3.42,Celeste lutrario,2.75,,10,12,0,0,,,,,,,team2,,2026-04-18T12:55:53.581Z,2026-04-18T13:17:15.524Z,21,
+4,3,,doubles,Wayne Hui,3.87,Kim Gordon,3.52,Raj Patel,3.68,Patrick See,3.58,,12,10,0,0,,,,,,,team1,,2026-04-18T12:55:54.596Z,2026-04-18T13:14:26.277Z,19,Confirmed
+5,1,,doubles,Kim Argereow,3.23,Tommy Brickle,3.61,David Faulkner,3.65,Tia Chick,3.23,,11,13,0,0,,,,,,,team2,,2026-04-18T13:14:50.457Z,2026-04-18T13:43:49.848Z,29,Confirmed
+5,3,,doubles,Don McMillan,3.45,Marion Acosta,2.53,Wendy Phillips,2.8,Jacqueline Gilliland,2.8,,11,1,0,0,,,,,,,team1,,2026-04-18T13:15:04.684Z,2026-04-18T13:28:18.497Z,13,
+5,2,,doubles,Nico,2.7,Carla Ruibal,2.83,Jerry DeKeyser,2.46,Ken Fan,2.98,,11,6,0,0,,,,,,,team1,,2026-04-18T13:17:47.621Z,2026-04-18T13:34:05.789Z,16,Confirmed
+6,3,,doubles,Jayden Gilliland,2.8,Wendy Phillips,2.8,Dan,3.42,Marion Acosta,2.53,,11,5,0,0,,,,,,,team1,,2026-04-18T13:29:10.477Z,2026-04-18T13:49:10.779Z,20,
+6,2,,doubles,Carla Ruibal,2.83,Jerry DeKeyser,2.46,Celeste lutrario,2.75,Christopher Gomez,2.7,,11,8,0,0,,,,,,,team1,,2026-04-18T13:34:12.041Z,2026-04-18T13:49:33.305Z,15,Confirmed
+6,1,,doubles,Sophie phillips,3.3,Patrick See,3.58,Kim Gordon,3.23,Raj Patel,3.68,,11,13,0,0,,,,,,,team2,,2026-04-18T13:45:38.729Z,2026-04-18T14:11:16.113Z,26,Confirmed 
+7,2,,doubles,Julia Richardson,3.8,Tommy Brickle,3.61,Wayne Hui,3.87,Tia Chick,3.23,,11,8,0,0,,,,,,,team1,,2026-04-18T13:52:37.563Z,2026-04-18T14:10:40.497Z,18,Confirmed
+7,3,,doubles,Austin Newell,3.53,Marylou Brennan,3,Celeste lutrario,3.65,Ken Fan,3,,5,11,0,0,,,,,,,team2,,2026-04-18T13:52:39.197Z,2026-04-18T14:06:50.125Z,14,
+7,3,,doubles,Austin Newell,3.53,Christopher Gomez,3.5,David Faulkner,3.65,Ken Fan,3,,6,11,0,0,,,,,,,team2,,2026-04-18T14:07:57.552Z,2026-04-18T14:30:55.233Z,23,Confirmed
+8,2,,doubles,Wendy Phillips,2.8,Jayden Gilliland,2.8,Marion Acosta,2.53,Carla Ruibal,2.83,,11,0,0,0,,,,,,,team1,,2026-04-18T14:11:29.568Z,2026-04-18T14:23:35.775Z,12,
+8,1,,doubles,Susan Conger,2.98,Nico,2.8,Christopher Gomrz,2.75,Jacqueline Gilliland,3,,11,8,0,0,,,,,,,team1,,2026-04-18T14:11:32.513Z,2026-04-18T14:31:04.045Z,20,Confirmed
+8,2,,doubles,Sophie phillips,3.3,Tia Chick,3.23,Kim Argereow,3.23,Keith poindexter,3.49,,13,11,0,0,,,,,,,team1,,2026-04-18T14:26:03.120Z,2026-04-18T14:58:03.706Z,32,Confirmed
+9,3,,doubles,Austin Newell,3.53,Wayne Hui,3.87,Tommy Brickle,3.61,Julia Richardson,3.8,,5,11,0,0,,,,,,,team2,,2026-04-18T14:31:16.755Z,2026-04-18T14:52:22.647Z,21,Confirmed 
+9,1,,doubles,Jayden Gilliland,3.5,Patrick See,3.58,Ken Fan,3,David Faulkner,3.65,,2,11,0,0,,,,,,,team2,,2026-04-18T14:31:17.517Z,2026-04-18T14:42:56.549Z,12,Confirmed
+10,1,,doubles,Kim Argereow,3.3,Tia Chick,3,Kim Gordon,3.23,Jerry DeKeyser,3.23,,11,8,0,0,,,,,,,team2,,2026-04-18T14:58:08.195Z,2026-04-18T15:18:57.775Z,21,Confirmed
+10,2,,doubles,Raj Patel,3.68,Austin Newell,3.53,David Faulkner,3.65,Patrick See,3.58,,11,7,0,0,,,,,,,team1,,2026-04-18T14:58:08.755Z,2026-04-18T15:15:57.066Z,18,Confirmed
+10,3,,doubles,Julia Richardson,3.8,Tommy Brickle,3.61,Jayden Gilliland,3.5,Wayne Hui,3.87,,10,12,0,0,,,,,,,team2,,2026-04-18T14:58:09.306Z,2026-04-18T15:15:18.467Z,17,Confirmed 
+11,1,,doubles,Austin Newell,3.53,Sophie phillips,3.3,Kim Argereow,3.23,Patrick See,3.58,,9,11,0,0,,,,,,,team2,,2026-04-18T15:19:24.896Z,2026-04-18T15:40:03.719Z,21,Confirmed 
+11,2,,doubles,David Faulkner,3.65,Jayden Gilliland,3.5,Tommy Brickle,3.61,Ricky Whittaker,3.6,,11,3,0,0,,,,,,,team1,,2026-04-18T15:19:25.478Z,2026-04-18T15:31:29.614Z,12,Confirmed
+11,3,,doubles,Raj Patel,3.68,Julia Richardson,3.8,Wayne Hui,3.87,Tia Chick,3.23,,11,8,0,0,,,,,,,team1,,2026-04-18T15:19:25.944Z,2026-04-18T15:39:24.881Z,20,Confirmed
+11,4,,doubles,Carla Ruibal,2.83,Marylou Brennan,2.8,Susan Conger,2.98,Nico,2.7,,7,11,0,0,,,,,,,team2,,2026-04-18T15:19:27.231Z,2026-04-18T15:39:02.060Z,20,
+12,1,,doubles,David Faulkner,3.65,Austin Newell,3.53,Tommy Brickle,3.61,Ricky Whittaker,3.6,,11,7,0,0,,,,,,,team2,,2026-04-18T15:40:15.781Z,2026-04-18T15:59:12.219Z,19,Confirmed
+12,2,,doubles,Celeste lutrario,2.75,Marylou Brennan,2.8,Carla Ruibal,2.83,Jerry DeKeyser,2.46,,0,11,0,0,,,,,,,team2,,2026-04-18T15:40:16.489Z,2026-04-18T15:59:43.900Z,19,Confirmed
+12,3,,doubles,Jayden Gilliland,3.5,Tia Chick,3.23,Sophie phillips,3.3,Kim Argereow,3.23,,11,2,0,0,,,,,,,team1,,2026-04-18T15:40:17.038Z,2026-04-18T15:59:28.150Z,19,Confirmed
+12,4,,doubles,Wayne Hui,3.87,Patrick See,3.58,Raj Patel,3.68,Julia Richardson,3.8,,11,6,0,0,,,,,,,team1,,2026-04-18T15:40:18.360Z,2026-04-18T16:02:18.509Z,22,Confirmed

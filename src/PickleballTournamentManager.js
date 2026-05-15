@@ -675,9 +675,11 @@ const PickleballTournamentManager = () => {
         });
       });
     });
-    // Derive sat-out: only for players who have played at least one completed match,
-    // and only for rounds that had at least one completed match (i.e. real rounds).
+    // Derive sat-out: base this on ALL present players, not just those who have played.
+    // This prevents benchwarmers from getting mathematically starved if courts drop.
+    const presentPlayerIds = presentPlayers.map(p => p.id);
     const everPlayedIds = new Set(Object.keys(stats));
+    const trackableIds = new Set([...presentPlayerIds, ...everPlayedIds]);
     rounds.forEach(round => {
       const completedInRound = round.filter(m => m.status === 'completed');
       if (completedInRound.length === 0) return; // skip purely pending/removed rounds
@@ -691,7 +693,7 @@ const PickleballTournamentManager = () => {
           match.team2?.forEach(p => playersInRound.add(p.id));
         }
       });
-      everPlayedIds.forEach(id => {
+      trackableIds.forEach(id => {
         if (!stats[id]) stats[id] = { matchesPlayed: 0, roundsSatOut: 0 };
         if (!playersInRound.has(id)) {
           stats[id].roundsSatOut += 1;
@@ -699,7 +701,7 @@ const PickleballTournamentManager = () => {
       });
     });
     return stats;
-  }, [rounds]); // removed presentPlayers dependency — sat-out universe is now match-history only
+  }, [rounds, presentPlayers]);
 
 
   // Derive accurate team stats from rounds history (ground-truth, like derivedPlayerStats)
@@ -2393,6 +2395,33 @@ const PickleballTournamentManager = () => {
                 </div>
               )}
             </Card>
+
+            {user?.registrationSlug && (
+              <Card className="md:col-span-2 mb-4 border-brand-secondary/40 bg-brand-secondary/5">
+                <h3 className="text-sm font-semibold text-brand-primary mb-2">Public Registration Link</h3>
+                <p className="text-xs text-brand-primary/70 mb-3 block">
+                  Share this link with players so they can register for your events automatically.
+                </p>
+                <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-brand-gray/50">
+                  <input
+                    type="text"
+                    readOnly
+                    className="flex-1 bg-transparent border-none text-sm text-brand-primary outline-none px-2"
+                    value={`https://dinksync.app/join/${user.registrationSlug}`}
+                 />
+                 <Button
+                   className="bg-brand-secondary text-brand-primary h-8 px-3 text-xs"
+                   onClick={(e) => {
+                     navigator.clipboard.writeText(`https://dinksync.app/join/${user.registrationSlug}`);
+                     e.target.innerText = 'Copied!';
+                     setTimeout(() => e.target.innerText = 'Copy', 2000);
+                   }}
+                 >
+                   Copy
+                 </Button>
+                </div>
+              </Card>
+            )}
 
             <Card className="md:col-span-2">
               <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Add players</h3>

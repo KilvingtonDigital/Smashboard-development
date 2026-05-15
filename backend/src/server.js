@@ -52,6 +52,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/session', sessionRoutes);
+app.use('/api/public', require('./routes/public'));
 
 // 404 handler
 app.use((req, res) => {

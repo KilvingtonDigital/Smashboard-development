@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.SMTP_PASS); // We use the API Key (SMTP_PASS)
+const resend = new Resend(process.env.SMTP_PASS || 're_dummy_fallback_so_it_doesnt_crash'); // We use the API Key (SMTP_PASS)
 
 const sendEmail = async ({ to, subject, text, html }) => {
     try {

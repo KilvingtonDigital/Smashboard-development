@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NiwidXNlcm5hbWUiOiJyaWNreV93aGl0dGFrZXJfcXR4anciLCJlbWFpbCI6InJpY2t5a3doaXR0YWtlci5yd0BnbWFpbC5jb20iLCJpYXQiOjE3NzI4MDEyOTUsImV4cCI6MTc3MzQwNjA5NX0.BSQI1PdZQzMS6FdgwYvPmjEMR5V8BJQTQnfBGuLI2Us"
+        },
+        {
+          "name": "pb_session",
+          "value": "{\"players\":[],\"rounds\":[],\"playerStats\":{},\"kotStats\":{},\"teamStats\":{},\"currentRound\":0,\"teams\":[],\"courtStates\":[{\"courtNumber\":1,\"status\":\"ready\",\"currentMatch\":null},{\"courtNumber\":2,\"status\":\"ready\",\"currentMatch\":null},{\"courtNumber\":3,\"status\":\"ready\",\"currentMatch\":null},{\"courtNumber\":4,\"status\":\"ready\",\"currentMatch\":null}],\"tournamentName\":\"\",\"meta\":{\"courts\":4,\"sessionMinutes\":120,\"minutesPerRound\":20,\"tournamentType\":\"round_robin\",\"gameFormat\":\"doubles\",\"matchFormat\":\"single_match\",\"separateBySkill\":true,\"ts\":1772801297332},\"locked\":false}"
+        },
+        {
+          "name": "pb_roster",
+          "value": "[]"
+        }
+      ]
+    }
+  ]
+}

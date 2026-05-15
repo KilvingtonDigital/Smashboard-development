@@ -44,6 +44,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP;
 
+-- MIGRATION: Add Public Registration columns
+ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_slug VARCHAR(50) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_name VARCHAR(100);
+
 -- MIGRATION: Add active session flag to tournaments
 ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS is_active_session BOOLEAN DEFAULT FALSE;
 
