@@ -6,6 +6,10 @@ class Player {
     const result = await pool.query(
       `INSERT INTO players (user_id, player_name, dupr_rating, gender)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, LOWER(player_name)) 
+       DO UPDATE SET 
+         dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 
+         gender = COALESCE(EXCLUDED.gender, players.gender)
        RETURNING *`,
       [user_id, player_name, dupr_rating, gender]
     );
@@ -66,6 +70,10 @@ class Player {
         const result = await client.query(
           `INSERT INTO players (user_id, player_name, dupr_rating, gender)
            VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id, LOWER(player_name)) 
+           DO UPDATE SET 
+             dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 
+             gender = COALESCE(EXCLUDED.gender, players.gender)
            RETURNING *`,
           [user_id, player.player_name, player.dupr_rating, player.gender]
         );

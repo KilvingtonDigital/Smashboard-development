@@ -55,3 +55,19 @@ ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS is_active_session BOOLEAN DEFAU
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tournaments_active_session_per_user
   ON tournaments (user_id)
   WHERE is_active_session = TRUE;
+
+
+-- DEDUPLICATION MIGRATION: Clean up existing duplicate players
+DELETE FROM players
+WHERE id IN (
+  SELECT id
+  FROM (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, LOWER(player_name) ORDER BY id ASC) as row_num
+    FROM players
+  ) t
+  WHERE t.row_num > 1
+);
+
+-- Ensure unique players per user (case-insensitive name)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_player_per_user 
+ON players (user_id, LOWER(player_name));
