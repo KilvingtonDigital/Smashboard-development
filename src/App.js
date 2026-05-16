@@ -4,6 +4,8 @@ import PickleballTournamentManager from './PickleballTournamentManager';
 import AuthPage from './components/AuthPage';
 import MigrationPrompt from './components/MigrationPrompt';
 import PublicRegistration from './components/PublicRegistration';
+import LegalWaiver from './pages/LegalWaiver';
+import TermsOfService from './pages/TermsOfService';
 
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -18,6 +20,9 @@ function AppContent() {
       return <ResetPassword token={token} onResetSuccess={() => window.location.href = '/'} />;
     }
   }
+
+  if (path === '/waiver') { return <LegalWaiver />; }
+  if (path === '/terms') { return <TermsOfService />; }
 
   // Check if we are on the public registration route
   if (path.startsWith('/join/')) {

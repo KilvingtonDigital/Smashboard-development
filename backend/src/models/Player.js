@@ -2,16 +2,21 @@ const pool = require('../config/database');
 
 class Player {
   // Create a new player
-  static async create({ user_id, player_name, dupr_rating, gender }) {
+  static async create({ user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed }) {
     const result = await pool.query(
-      `INSERT INTO players (user_id, player_name, dupr_rating, gender)
+      `INSERT INTO players (user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, waiver_timestamp)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id, LOWER(player_name)) 
        DO UPDATE SET 
          dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 
-         gender = COALESCE(EXCLUDED.gender, players.gender)
+         gender = COALESCE(EXCLUDED.gender, players.gender),
+         email = COALESCE(EXCLUDED.email, players.email),
+         phone = COALESCE(EXCLUDED.phone, players.phone),
+         dupr_id = COALESCE(EXCLUDED.dupr_id, players.dupr_id),
+         waiver_signed = COALESCE(EXCLUDED.waiver_signed, players.waiver_signed),
+         waiver_timestamp = COALESCE(EXCLUDED.waiver_timestamp, players.waiver_timestamp)
        RETURNING *`,
-      [user_id, player_name, dupr_rating, gender]
+      [user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed]
     );
     return result.rows[0];
   }

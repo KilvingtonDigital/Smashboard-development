@@ -27,7 +27,7 @@ exports.validateSlug = async (req, res) => {
 exports.registerPlayer = async (req, res) => {
   try {
     const { slug } = req.params;
-    const { firstName, lastName, rating, gender } = req.body;
+    const { firstName, lastName, rating, gender, email, phone, duprId, waiverSigned } = req.body;
 
     const user = await User.findByRegistrationSlug(slug);
     if (!user) {
@@ -38,6 +38,14 @@ exports.registerPlayer = async (req, res) => {
       return res.status(400).json({ error: 'First name and DUPR rating are required' });
     }
 
+    if (!waiverSigned) {
+      return res.status(400).json({ error: 'You must agree to the Terms of Service and Liability Waiver to register.' });
+    }
+
+    if (!waiverSigned) {
+      return res.status(400).json({ error: 'You must agree to the Terms of Service and Liability Waiver to register.' });
+    }
+
     const fullName = lastName ? `${firstName} ${lastName}` : firstName;
     
     // Add to players table via Player model
@@ -45,7 +53,11 @@ exports.registerPlayer = async (req, res) => {
       user_id: user.id,
       player_name: fullName,
       dupr_rating: rating,
-      gender: gender || 'male'
+      gender: gender || 'male',
+      email,
+      phone,
+      dupr_id: duprId,
+      waiver_signed: waiverSigned
     });
 
     res.status(201).json({
