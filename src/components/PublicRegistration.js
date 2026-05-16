@@ -110,9 +110,7 @@ const PublicRegistration = ({ slug }) => {
         
         {/* Header content */}
         <div className="text-center mb-8">
-          <div className="bg-brand-secondary/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl text-brand-secondary font-black leading-none pb-1 font-serif italic">d</span>
-          </div>
+          <div className="grid h-8 w-8 place-items-center mx-auto mb-4 rounded-lg bg-brand-primary text-white font-bold text-sm tracking-tight"><span><span className="text-white">D</span><span className="text-brand-secondary">S</span></span></div>
           <h1 className="text-sm font-bold text-brand-primary/40 uppercase tracking-widest mb-2">Event Registration</h1>
           <h2 className="text-2xl font-black text-brand-primary leading-tight">Join {orgName}</h2>
         </div>
