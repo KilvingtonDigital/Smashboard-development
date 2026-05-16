@@ -71,3 +71,18 @@ WHERE id IN (
 -- Ensure unique players per user (case-insensitive name)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_player_per_user 
 ON players (user_id, LOWER(player_name));
+
+-- MIGRATION: Add Public Registration PII and Legal fields to players
+ALTER TABLE players ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS dupr_id VARCHAR(100);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_signed BOOLEAN DEFAULT FALSE;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_timestamp TIMESTAMP;
+
+-- MIGRATION: Add Public Registration PII and Legal fields to players
+ALTER TABLE players ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS dupr_id VARCHAR(100);
+ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_signed BOOLEAN DEFAULT FALSE;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_timestamp TIMESTAMP;
+
