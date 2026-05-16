@@ -2207,9 +2207,10 @@ const PickleballTournamentManager = () => {
       <div className="mx-auto max-w-7xl px-3 sm:px-4 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
         {tab === 'setup' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            <Card>
-              <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Session</h3>
-              <div className="space-y-3">
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <Card>
+                <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Session</h3>
+                <div className="space-y-3">
                 <Field label="Tournament name">
                   <input
                     type="text"
@@ -2405,7 +2406,7 @@ const PickleballTournamentManager = () => {
             </Card>
 
             {user?.registrationSlug && (
-              <Card className="md:col-span-2 mb-4 border-brand-secondary/40 bg-brand-secondary/5">
+              <Card className="border-brand-secondary/40 bg-brand-secondary/5">
                 <h3 className="text-sm font-semibold text-brand-primary mb-2">Public Registration Link</h3>
                 <p className="text-xs text-brand-primary/70 mb-3 block">
                   Share this link with players so they can register for your events automatically.
@@ -2430,6 +2431,7 @@ const PickleballTournamentManager = () => {
                 </div>
               </Card>
             )}
+            </div>
 
             <Card className="md:col-span-2">
               <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Add players</h3>
