@@ -2562,6 +2562,127 @@ const PickleballTournamentManager = () => {
                 </div>
               </Card>
             )}
+
+            {/* 🌦️ Weather/Rain Delay Controller */}
+            <Card className="border-brand-primary/10 bg-brand-light/50">
+              <h3 className="text-sm font-semibold text-brand-primary mb-2 flex items-center gap-1.5">
+                🌦️ Weather / Rain Delay Controller
+              </h3>
+              <p className="text-xs text-brand-primary/70 mb-3 block leading-normal">
+                Add an active rain delay to shift play start times and broadcast SMS updates to checked-in players.
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-brand-primary">Delay Minutes</span>
+                  <span className="text-sm font-black text-orange-600">
+                    {bracket?.delayMinutes ? `+${bracket.delayMinutes} Mins` : 'No Delay'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="180"
+                  step="15"
+                  value={bracket?.delayMinutes || 0}
+                  onChange={(e) => {
+                    const minutes = parseInt(e.target.value);
+                    setBracket(prev => {
+                      if (!prev) return prev;
+                      return { ...prev, delayMinutes: minutes };
+                    });
+                  }}
+                  className="w-full h-2 bg-brand-gray rounded-lg appearance-none cursor-pointer accent-orange-500"
+                />
+                <Button
+                  disabled={!(bracket?.delayMinutes > 0)}
+                  onClick={() => {
+                    const msg = `🌦️ SmashBoard Rain Delay Update: The tournament has been delayed by ${bracket.delayMinutes} minutes due to court weather conditions. Estimated times have been shifted accordingly.`;
+                    fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/notifications/broadcast`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ msg })
+                    }).catch(() => {});
+                    alert('Simulated SMS delay broadcast dispatched to all checked-in players!');
+                  }}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-9 text-xs py-1 transition-colors uppercase tracking-wider"
+                >
+                  📢 Broadcast SMS Delay
+                </Button>
+              </div>
+            </Card>
+
+            {/* 💰 Sponsor & Vendor Spots Booking */}
+            <Card className="border-brand-primary/10 bg-brand-light/50">
+              <h3 className="text-sm font-semibold text-brand-primary mb-2 flex items-center gap-1.5">
+                💰 Sponsor & Vendor Spots
+              </h3>
+              <p className="text-xs text-brand-primary/70 mb-3 block leading-normal">
+                Onboard local clinics or gear stands. Secured spots are instantly added to the public Spectator Portal.
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
+                  {(bracket?.sponsors || []).length > 0 ? (
+                    (bracket.sponsors || []).map(s => (
+                      <div key={s.id} className="flex justify-between items-center bg-white p-2 rounded-xl border border-brand-gray text-[11px] font-semibold text-brand-primary select-none">
+                        <span>{s.name} ({s.tier})</span>
+                        <span className="text-[10px] text-green-600 font-extrabold">${s.amount}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-[10px] text-brand-primary/40 font-bold uppercase py-2 bg-white rounded-xl border border-brand-gray border-dashed">
+                      No Booked Sponsors
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-brand-gray/60">
+                  <Button
+                    onClick={() => {
+                      const name = window.prompt("Enter local business or clinic name:");
+                      if (!name) return;
+                      const amount = 250;
+                      const newSponsor = {
+                        id: `sp-${Date.now()}`,
+                        name,
+                        tier: 'Gold Sponsor',
+                        amount
+                      };
+                      setBracket(prev => {
+                        if (!prev) return prev;
+                        const sponsors = prev.sponsors || [];
+                        return { ...prev, sponsors: [...sponsors, newSponsor] };
+                      });
+                      alert(`Simulated Stripe payment checkout completed! $${amount} received from ${name}.`);
+                    }}
+                    className="bg-brand-primary hover:bg-brand-primary/95 text-white font-bold h-9 text-[10px] py-1 transition-colors uppercase tracking-wider"
+                  >
+                    + Gold Sponsor
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const name = window.prompt("Enter vendor or food truck name:");
+                      if (!name) return;
+                      const amount = 100;
+                      const newSponsor = {
+                        id: `sp-${Date.now()}`,
+                        name,
+                        tier: 'Food Vendor',
+                        amount
+                      };
+                      setBracket(prev => {
+                        if (!prev) return prev;
+                        const sponsors = prev.sponsors || [];
+                        return { ...prev, sponsors: [...sponsors, newSponsor] };
+                      });
+                      alert(`Simulated Stripe payment checkout completed! $${amount} received from ${name}.`);
+                    }}
+                    className="bg-brand-primary hover:bg-brand-primary/95 text-white font-bold h-9 text-[10px] py-1 transition-colors uppercase tracking-wider"
+                  >
+                    + Food Vendor
+                  </Button>
+                </div>
+              </div>
+            </Card>
             </div>
 
             <Card className="md:col-span-2">

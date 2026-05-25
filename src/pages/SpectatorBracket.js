@@ -106,6 +106,22 @@ const SpectatorBracket = ({ slug }) => {
     <div className="min-h-screen bg-brand-light font-sans py-8 px-4 sm:px-6">
       <div className="mx-auto max-w-7xl">
         
+        {/* 🌦️ Weather/Rain Delay Alert Banner */}
+        {bracket?.delayMinutes > 0 && (
+          <div className="bg-orange-500 border border-orange-600 text-white rounded-2xl p-4 mb-6 flex items-center justify-between shadow-md select-none animate-pulse">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🌦️</span>
+              <div className="text-left">
+                <div className="text-xs font-black uppercase tracking-wider">Active Weather Rain Delay</div>
+                <div className="text-[11px] font-semibold opacity-90 mt-0.5">
+                  Play shifted by <span className="font-extrabold font-mono text-xs text-brand-secondary">+{bracket.delayMinutes} minutes</span>. Standby countdowns adjusted.
+                </div>
+              </div>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded">Alert Active</span>
+          </div>
+        )}
+
         {/* Sticky-like header for Spectators */}
         <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-brand-gray/80 shadow-[0_4px_25px_rgb(0,0,0,0.01)] rounded-3xl p-5 mb-6 gap-4">
           <div className="text-center sm:text-left">
@@ -203,6 +219,29 @@ const SpectatorBracket = ({ slug }) => {
           onMatchScore={() => {}} 
           readOnly={true} 
         />
+
+        {/* 💰 Booked Event Sponsors & Vendors */}
+        {bracket?.sponsors && bracket.sponsors.length > 0 && (
+          <div className="bg-white border border-brand-gray/80 shadow-[0_4px_25px_rgb(0,0,0,0.01)] rounded-3xl p-5 mt-6 font-sans text-center select-none animate-fade-in">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-4">
+              🤝 Event Sponsored & Supported By
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              {bracket.sponsors.map(sponsor => (
+                <div
+                  key={sponsor.id}
+                  className="bg-brand-light/35 border border-brand-gray/60 px-4 py-2 rounded-xl flex items-center gap-2 shadow-[0_2px_5px_rgba(0,0,0,0.01)] hover:border-brand-secondary transition-all"
+                >
+                  <span className="text-base">🏢</span>
+                  <div className="text-left">
+                    <span className="text-xs font-black text-brand-primary block leading-none">{sponsor.name}</span>
+                    <span className="text-[8px] font-bold text-brand-primary/40 uppercase tracking-widest block mt-0.5">{sponsor.tier}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 text-center">
           <a href="https://dinksync.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-brand-primary/30 hover:text-brand-primary/50 transition-colors uppercase tracking-widest font-semibold">

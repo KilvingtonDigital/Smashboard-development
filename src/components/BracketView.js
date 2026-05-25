@@ -64,6 +64,159 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
     }
   };
 
+  // 🥇 PODIUM CALCULATIONS
+  const getPodiumWinners = () => {
+    let gold = null;
+    let silver = null;
+    let bronze = null;
+
+    if (type === 'double_elim') {
+      const gf1 = grandFinalsMatches[0];
+      const gf2 = grandFinalsMatches[1];
+      
+      if (gf2 && gf2.status === 'completed') {
+        gold = gf2.winner === 'team1' ? gf2.team1 : gf2.team2;
+        silver = gf2.winner === 'team1' ? gf2.team2 : gf2.team1;
+      } else if (gf1 && gf1.status === 'completed') {
+        gold = gf1.winner === 'team1' ? gf1.team1 : gf1.team2;
+        silver = gf1.winner === 'team1' ? gf1.team2 : gf1.team1;
+      }
+      
+      const consFinals = consolationMatches.find(m => m.round === totalConsolationRounds);
+      if (consFinals && consFinals.status === 'completed') {
+        bronze = consFinals.winner === 'team1' ? consFinals.team1 : consFinals.team2;
+      }
+    } else {
+      const champMatch = winnersMatches.find(m => m.round === numRounds);
+      if (champMatch && champMatch.status === 'completed') {
+        gold = champMatch.winner === 'team1' ? champMatch.team1 : champMatch.team2;
+        silver = champMatch.winner === 'team1' ? champMatch.team2 : champMatch.team1;
+      }
+      
+      const bronzeMatch = consolationMatches[0];
+      if (bronzeMatch && bronzeMatch.status === 'completed') {
+        bronze = bronzeMatch.winner === 'team1' ? bronzeMatch.team1 : bronzeMatch.team2;
+      }
+    }
+
+    return { gold, silver, bronze };
+  };
+
+  // 🖼️ AWARD CERTIFICATE CANVAS GENERATOR
+  const downloadAwardGraphic = (playerNames, placementLabel) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 800, 600);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#020617');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 800, 600);
+
+    ctx.strokeStyle = '#d6f060';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(20, 20, 760, 560);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(35, 35, 730, 530);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆 SMASHBOARD CHAMPIONSHIP 🏆', 400, 100);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('OFFICIAL TOURNAMENT AWARD', 400, 140);
+
+    ctx.fillStyle = '#d6f060';
+    ctx.font = 'bold 54px sans-serif';
+    ctx.fillText(placementLabel.toUpperCase(), 400, 240);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 38px sans-serif';
+    ctx.fillText(playerNames, 400, 340);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(`Presented on ${new Date().toLocaleDateString()} for outstanding competitive performance`, 400, 410);
+    ctx.fillText(`in the ${bracket.tournamentName || 'SmashBoard Event'} brackets.`, 400, 435);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = 'italic 14px sans-serif';
+    ctx.fillText('Certified by DinkSync', 400, 510);
+
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `smashboard_award_${placementLabel.toLowerCase().replace(/\s+/g, '_')}.png`;
+    a.click();
+  };
+
+  // 📊 DUPR MATCH RESULTS CSV ENGINE
+  const exportDuprCsv = () => {
+    const headers = [
+      'Match ID', 'Event Name', 'Date',
+      'Team 1 Player A Name', 'Team 1 Player A DUPR ID', 'Team 1 Player B Name', 'Team 1 Player B DUPR ID',
+      'Team 2 Player A Name', 'Team 2 Player A DUPR ID', 'Team 2 Player B Name', 'Team 2 Player B DUPR ID',
+      'Team 1 Score 1', 'Team 2 Score 1', 'Winner'
+    ];
+    
+    const rows = [headers];
+    
+    allMatches.forEach(match => {
+      if (match.status !== 'completed') return;
+      
+      const t1Names = match.team1?.name?.split(' / ') || [];
+      const t2Names = match.team2?.name?.split(' / ') || [];
+      
+      const getDuprId = (name) => {
+        if (!name) return '';
+        const found = (players || []).find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+        return found?.duprId || found?.dupr_id || '';
+      };
+      
+      const p1A_Name = t1Names[0] || '';
+      const p1A_Dupr = getDuprId(p1A_Name);
+      const p1B_Name = t1Names[1] || '';
+      const p1B_Dupr = getDuprId(p1B_Name);
+      
+      const p2A_Name = t2Names[0] || '';
+      const p2A_Dupr = getDuprId(p2A_Name);
+      const p2B_Name = t2Names[1] || '';
+      const p2B_Dupr = getDuprId(p2B_Name);
+      
+      const winnerLabel = match.winner === 'team1' ? 'Team 1' : 'Team 2';
+      
+      const row = [
+        match.id,
+        bracket.tournamentName || 'Tournament',
+        new Date().toLocaleDateString(),
+        p1A_Name, p1A_Dupr, p1B_Name, p1B_Dupr,
+        p2A_Name, p2A_Dupr, p2B_Name, p2B_Dupr,
+        match.score1 || 0, match.score2 || 0,
+        winnerLabel
+      ];
+      
+      rows.push(row);
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + rows.map(e => e.map(val => `"${val.toString().replace(/"/g, '""')}"`).join(",")).join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `smashboard_dupr_matches_${bracket.tournamentName?.toLowerCase().replace(/\s+/g, '_') || 'export'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    triggerToast("DUPR Matches CSV generated & downloaded!");
+  };
+
   // 📊 TELEMETRY CALCULATIONS
   const completedWinners = winnersMatches.filter(m => m.status === 'completed');
   const completedConsolation = consolationMatches.filter(m => m.status === 'completed');
@@ -427,6 +580,93 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
           </div>
         </div>
       )}
+
+      {/* 🥇 Completed Tournament Podium (Organizers & Spectators) */}
+      {totalRemaining === 0 && (() => {
+        const podium = getPodiumWinners();
+        if (!podium.gold && !podium.silver) return null;
+
+        return (
+          <div className="bg-white p-6 rounded-3xl border border-brand-gray/80 shadow-soft space-y-6 font-sans text-center select-none animate-fade-in mb-6">
+            <div className="border-b border-brand-gray pb-3 flex justify-between items-center">
+              <h3 className="text-sm font-extrabold text-brand-primary uppercase tracking-wider flex items-center gap-2">
+                🏆 SmashBoard Champion Podium
+              </h3>
+              {!readOnly && (
+                <button
+                  onClick={exportDuprCsv}
+                  className="bg-brand-primary hover:bg-brand-primary/95 text-white font-bold text-[10px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider transition-colors"
+                >
+                  📊 Export DUPR CSV
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-end justify-center gap-6 pt-8 pb-4 max-w-2xl mx-auto">
+              
+              {/* 🥈 2nd Place Silver Column */}
+              {podium.silver && (
+                <div className="w-full sm:w-44 flex flex-col items-center">
+                  <div className="text-xs font-bold text-brand-primary mb-2 line-clamp-1">{podium.silver.name}</div>
+                  <div className="w-full h-32 bg-slate-100 border border-slate-200 shadow-sm rounded-t-2xl flex flex-col items-center justify-between p-3 relative">
+                    <span className="text-3xl absolute -top-5">🥈</span>
+                    <span className="text-sm font-black text-slate-400 mt-2">2nd Place</span>
+                    {!readOnly && (
+                      <button
+                        onClick={() => downloadAwardGraphic(podium.silver.name, '2nd Place')}
+                        className="bg-white hover:bg-slate-50 border border-brand-gray rounded-lg px-2.5 py-1 text-[9px] font-bold text-brand-primary uppercase tracking-wider transition-colors"
+                      >
+                        Award Card
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 🥇 1st Place Gold Column */}
+              {podium.gold && (
+                <div className="w-full sm:w-48 flex flex-col items-center order-first sm:order-none">
+                  <div className="text-sm font-black text-brand-primary mb-2 line-clamp-1 flex items-center gap-1">
+                    👑 {podium.gold.name}
+                  </div>
+                  <div className="w-full h-44 bg-brand-secondary/15 border border-brand-secondary/40 shadow-soft rounded-t-3xl flex flex-col items-center justify-between p-4 relative">
+                    <span className="text-4xl absolute -top-7 animate-pulse">🥇</span>
+                    <span className="text-base font-black text-brand-primary mt-2">CHAMPION</span>
+                    {!readOnly && (
+                      <button
+                        onClick={() => downloadAwardGraphic(podium.gold.name, 'Champion')}
+                        className="bg-brand-primary hover:bg-brand-primary/95 text-white rounded-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shadow-soft"
+                      >
+                        Award Card
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 🥉 3rd Place Bronze Column */}
+              {podium.bronze && (
+                <div className="w-full sm:w-44 flex flex-col items-center">
+                  <div className="text-xs font-bold text-brand-primary mb-2 line-clamp-1">{podium.bronze.name}</div>
+                  <div className="w-full h-24 bg-amber-50/50 border border-amber-200/50 shadow-sm rounded-t-2xl flex flex-col items-center justify-between p-3 relative">
+                    <span className="text-3xl absolute -top-5">🥉</span>
+                    <span className="text-sm font-black text-amber-700 mt-2">3rd Place</span>
+                    {!readOnly && (
+                      <button
+                        onClick={() => downloadAwardGraphic(podium.bronze.name, '3rd Place')}
+                        className="bg-white hover:bg-amber-50/20 border border-brand-gray rounded-lg px-2.5 py-1 text-[9px] font-bold text-brand-primary uppercase tracking-wider transition-colors"
+                      >
+                        Award Card
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 🏟️ INTERACTIVE COURTS DASHBOARD (Organizers Only) */}
       {!readOnly && (
