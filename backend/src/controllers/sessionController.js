@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { sendSMS } = require('../config/sms');
 
 /**
  * GET /api/session
@@ -47,9 +48,105 @@ exports.saveSession = async (req, res) => {
 
         // Find the most-recent session row for this user (active OR stale — we reuse it)
         const existing = await pool.query(
-            `SELECT id FROM tournaments WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1`,
+            `SELECT id, tournament_data FROM tournaments WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1`,
             [req.user.id]
         );
+
+        // Extract old court states for diffing
+        let oldCourtStates = [];
+        if (existing.rows.length > 0 && existing.rows[0].tournament_data) {
+            oldCourtStates = existing.rows[0].tournament_data.courtStates || [];
+        }
+
+        // We run diffing and trigger SMS alerts asynchronously
+        const newCourtStates = sessionData.courtStates || [];
+        const playersRegistry = sessionData.players || [];
+
+        newCourtStates.forEach((newCourt, newCourtIdx) => {
+            if (newCourt.status === 'playing' && newCourt.currentMatch) {
+                const newMatch = newCourt.currentMatch;
+                const oldCourt = oldCourtStates.find(c => c.courtNumber === newCourt.courtNumber) || oldCourtStates[newCourtIdx];
+                const oldMatch = oldCourt ? oldCourt.currentMatch : null;
+                const oldStatus = oldCourt ? oldCourt.status : '';
+
+                let isNewMatch = false;
+                if (oldStatus !== 'playing' || !oldMatch) {
+                    isNewMatch = true;
+                } else {
+                    const getMatchPlayersKey = (m) => {
+                        const ids = [];
+                        if (m.player1) ids.push(m.player1.id);
+                        if (m.player2) ids.push(m.player2.id);
+                        if (m.player3) ids.push(m.player3.id);
+                        if (m.player4) ids.push(m.player4.id);
+                        return `${m.startTime || ''}-${ids.sort().join('-')}`;
+                    };
+                    if (getMatchPlayersKey(oldMatch) !== getMatchPlayersKey(newMatch)) {
+                        isNewMatch = true;
+                    }
+                }
+
+                if (isNewMatch) {
+                    // Send alerts for this new match
+                    const activePlayers = [];
+                    if (newMatch.player1) activePlayers.push({ key: 'p1', ref: newMatch.player1 });
+                    if (newMatch.player2) activePlayers.push({ key: 'p2', ref: newMatch.player2 });
+                    if (newMatch.player3) activePlayers.push({ key: 'p3', ref: newMatch.player3 });
+                    if (newMatch.player4) activePlayers.push({ key: 'p4', ref: newMatch.player4 });
+
+                    const resolvedPlayers = activePlayers.map(p => {
+                        const fullProfile = playersRegistry.find(pr => pr.id === p.ref.id);
+                        return {
+                            id: p.ref.id,
+                            name: fullProfile ? (fullProfile.player_name || fullProfile.name) : (p.ref.player_name || p.ref.name || 'Unknown'),
+                            phone: fullProfile ? fullProfile.phone : null,
+                            key: p.key
+                        };
+                    });
+
+                    resolvedPlayers.forEach(p => {
+                        if (!p.phone) {
+                            console.warn(`[SMS SKIP] No phone number found for player ${p.name} (ID: ${p.id})`);
+                            return;
+                        }
+
+                        let body = '';
+                        const courtName = newCourt.courtNumber || newCourt.courtIndex + 1 || 'N/A';
+
+                        if (newMatch.gameFormat === 'singles') {
+                            const opponent = resolvedPlayers.find(o => o.id !== p.id);
+                            const opponentName = opponent ? opponent.name : 'Unknown Opponent';
+                            body = `DinkSync Alert: Your singles match on Court ${courtName} is now LIVE against ${opponentName}! Have a great game! 🏓`;
+                        } else {
+                            let partner = null;
+                            let opponents = [];
+                            if (p.key === 'p1') {
+                                partner = resolvedPlayers.find(o => o.key === 'p3');
+                                opponents = resolvedPlayers.filter(o => o.key === 'p2' || o.key === 'p4');
+                            } else if (p.key === 'p3') {
+                                partner = resolvedPlayers.find(o => o.key === 'p1');
+                                opponents = resolvedPlayers.filter(o => o.key === 'p2' || o.key === 'p4');
+                            } else if (p.key === 'p2') {
+                                partner = resolvedPlayers.find(o => o.key === 'p4');
+                                opponents = resolvedPlayers.filter(o => o.key === 'p1' || o.key === 'p3');
+                            } else if (p.key === 'p4') {
+                                partner = resolvedPlayers.find(o => o.key === 'p2');
+                                opponents = resolvedPlayers.filter(o => o.key === 'p1' || o.key === 'p3');
+                            }
+
+                            const partnerName = partner ? partner.name : 'Unknown Partner';
+                            const oppsNames = opponents.map(o => o.name).join(' & ');
+                            body = `DinkSync Alert: Your doubles match on Court ${courtName} is now LIVE! Partner: ${partnerName}. Opponents: ${oppsNames}. Have a great game! 🏓`;
+                        }
+
+                        console.log(`[ALERT TRIGGER] Match started on Court ${courtName}! Sending SMS alert to ${p.name} (${p.phone})...`);
+                        sendSMS({ to: p.phone, body }).catch(err => {
+                            console.error(`[SMS ERROR] Failed to send to ${p.name}:`, err);
+                        });
+                    });
+                }
+            }
+        });
 
         if (existing.rows.length > 0) {
             // Update the existing row and mark it as the active session
