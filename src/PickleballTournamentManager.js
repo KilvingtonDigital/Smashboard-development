@@ -424,6 +424,41 @@ const PickleballTournamentManager = () => {
 
   const [debugLog, addDebug] = useDebugLog();
 
+  // Screen Wake Lock API to prevent display sleep/lock during officiating
+  useEffect(() => {
+    let wakeLock = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('🔒 Screen Wake Lock acquired for tournament manager');
+        }
+      } catch (err) {
+        console.warn('⚠️ Screen Wake Lock request failed:', err.message);
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !wakeLock) {
+        await requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLock) {
+        wakeLock.release().catch(err => {
+          console.warn('Error releasing wake lock:', err);
+        });
+      }
+    };
+  }, []);
+
   // Restore session on mount — backend first, localStorage as fallback
   useEffect(() => {
     const restoreSession = async () => {
