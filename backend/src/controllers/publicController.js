@@ -96,3 +96,153 @@ exports.registerPlayer = async (req, res) => {
     res.status(500).json({ error: 'Failed to complete registration' });
   }
 };
+
+// Retrieve live tournament state for player dashboard
+exports.getPlayerDashboard = async (req, res) => {
+  try {
+    const { tournamentId, playerIdent } = req.params;
+
+    const tResult = await pool.query(
+      'SELECT id, tournament_name, tournament_type, tournament_data, is_active_session FROM tournaments WHERE id = $1',
+      [tournamentId]
+    );
+
+    if (tResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    const tournament = tResult.rows[0];
+    const data = tournament.tournament_data || {};
+    const players = data.players || [];
+    const rounds = data.rounds || [];
+    const courtStates = data.courtStates || [];
+    const currentRound = data.currentRound || 0;
+
+    const cleanIdent = playerIdent.toString().trim().toLowerCase();
+    const cleanPhoneIdent = cleanIdent.replace(/\D/g, '');
+
+    // Match player in roster
+    const player = players.find(p => {
+      const pEmail = p.email ? p.email.toString().trim().toLowerCase() : '';
+      const pPhone = p.phone ? p.phone.toString().replace(/\D/g, '') : '';
+      const pId = p.id ? p.id.toString() : '';
+      return pEmail === cleanIdent || (cleanPhoneIdent && pPhone === cleanPhoneIdent) || pId === cleanIdent;
+    });
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found in this tournament roster' });
+    }
+
+    const matchHistory = [];
+    let currentMatch = null;
+    let nextMatch = null;
+    let isStandby = false;
+
+    // Helper helper to map partner and opponents
+    const formatMatchDetails = (match, isP1, isP2, isP3, isP4, roundIdx) => {
+      const formatted = {
+        roundIndex: roundIdx + 1,
+        courtNumber: match.courtNumber || match.courtIndex + 1 || null,
+        partner: null,
+        opponents: [],
+        status: match.status || 'scheduled',
+        score1: match.score1 || 0,
+        score2: match.score2 || 0,
+        winner: match.winner || null
+      };
+
+      if (match.gameFormat === 'singles') {
+        formatted.opponents = isP1 ? [match.player2] : [match.player1];
+      } else {
+        if (isP1) {
+          formatted.partner = match.player3;
+          formatted.opponents = [match.player2, match.player4];
+        } else if (isP3) {
+          formatted.partner = match.player1;
+          formatted.opponents = [match.player2, match.player4];
+        } else if (isP2) {
+          formatted.partner = match.player4;
+          formatted.opponents = [match.player1, match.player3];
+        } else if (isP4) {
+          formatted.partner = match.player2;
+          formatted.opponents = [match.player1, match.player3];
+        }
+      }
+      return formatted;
+    };
+
+    // Parse all rounds for history and future schedules
+    rounds.forEach((round, roundIdx) => {
+      const roundMatches = round.matches || [];
+      const roundStandbys = round.standby || [];
+      const isStandbyInRound = roundStandbys.some(s => s.id === player.id);
+
+      roundMatches.forEach(match => {
+        const isP1 = match.player1 && match.player1.id === player.id;
+        const isP2 = match.player2 && match.player2.id === player.id;
+        const isP3 = match.player3 && match.player3.id === player.id;
+        const isP4 = match.player4 && match.player4.id === player.id;
+
+        if (isP1 || isP2 || isP3 || isP4) {
+          const formatted = formatMatchDetails(match, isP1, isP2, isP3, isP4, roundIdx);
+          if (formatted.status === 'completed') {
+            matchHistory.push(formatted);
+          } else {
+            if (roundIdx === currentRound) {
+              currentMatch = formatted;
+            } else if (roundIdx > currentRound && !nextMatch) {
+              nextMatch = formatted;
+            }
+          }
+        }
+      });
+
+      if (roundIdx === currentRound && isStandbyInRound) {
+        isStandby = true;
+      }
+    });
+
+    // Check if player is currently active in live courtStates
+    courtStates.forEach((court, courtIdx) => {
+      const match = court.currentMatch;
+      if (!match) return;
+
+      const isP1 = match.player1 && match.player1.id === player.id;
+      const isP2 = match.player2 && match.player2.id === player.id;
+      const isP3 = match.player3 && match.player3.id === player.id;
+      const isP4 = match.player4 && match.player4.id === player.id;
+
+      if (isP1 || isP2 || isP3 || isP4) {
+        const formatted = formatMatchDetails(match, isP1, isP2, isP3, isP4, currentRound);
+        formatted.status = 'live';
+        formatted.courtNumber = courtIdx + 1;
+        currentMatch = formatted;
+      }
+    });
+
+    res.json({
+      success: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.tournament_name,
+        type: tournament.tournament_type,
+        isActive: tournament.is_active_session,
+        currentRound: currentRound + 1
+      },
+      player: {
+        id: player.id,
+        name: player.player_name,
+        rating: player.dupr_rating,
+        gender: player.gender
+      },
+      currentMatch,
+      nextMatch,
+      isStandby,
+      matchHistory
+    });
+
+  } catch (error) {
+    console.error('Player dashboard API error:', error);
+    res.status(500).json({ error: 'Failed to retrieve player dashboard data' });
+  }
+};

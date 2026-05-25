@@ -10,4 +10,7 @@ router.get('/join/:slug/:tournamentId', publicController.validateSlug);
 router.post('/join/:slug', publicController.registerPlayer);
 router.post('/join/:slug/:tournamentId', publicController.registerPlayer);
 
+// Player portal dashboard live data extraction
+router.get('/tournament/:tournamentId/player/:playerIdent', publicController.getPlayerDashboard);
+
 module.exports = router;
