@@ -21,7 +21,17 @@ const playerValidation = [
   body('gender')
     .optional()
     .isIn(['Male', 'Female', 'male', 'female', 'Other', 'other', ''])
-    .withMessage('Invalid gender value')
+    .withMessage('Invalid gender value'),
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email address is required')
+    .isEmail()
+    .withMessage('Must be a valid email address'),
+  body('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
 ];
 
 // Routes

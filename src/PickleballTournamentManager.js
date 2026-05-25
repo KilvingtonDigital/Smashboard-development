@@ -382,7 +382,7 @@ const PickleballTournamentManager = () => {
   const sessionRestoredRef = useRef(false); // prevents autosave from firing before restore
   const [players, setPlayers] = useState([]);
   const [tournamentId, setTournamentId] = useState(null);
-  const [form, setForm] = useState({ name: '', rating: '', gender: 'male' });
+  const [form, setForm] = useState({ name: '', rating: '', gender: 'male', email: '', phone: '' });
   const [bulkText, setBulkText] = useState('');
   const [addNote, setAddNote] = useState(null);
 
@@ -853,15 +853,21 @@ const PickleballTournamentManager = () => {
   const addPlayer = async () => {
     const name = form.name.trim();
     const rating = Number(form.rating);
+    const email = form.email.trim();
+    const phone = form.phone.trim();
     if (!name) return alert('Name is required');
     if (Number.isNaN(rating) || rating < 2.0 || rating > 5.5) return alert('Enter DUPR 2.0 – 5.5');
+    if (!email) return alert('Email is required');
+    if (!phone) return alert('Phone number is required');
 
     try {
       // Call API
       const { success, data, error } = await api.players.create({
         player_name: name,
         dupr_rating: rating,
-        gender: form.gender
+        gender: form.gender,
+        email,
+        phone
       });
 
       if (success && data.player) {
@@ -870,10 +876,12 @@ const PickleballTournamentManager = () => {
           name: data.player.player_name,
           rating: Number(data.player.dupr_rating),
           gender: data.player.gender,
+          email: data.player.email,
+          phone: data.player.phone,
           present: true
         };
         setPlayers((prev) => [...prev, newPlayer]);
-        setForm({ name: '', rating: '', gender: 'male' });
+        setForm({ name: '', rating: '', gender: 'male', email: '', phone: '' });
 
         setAddNote(`Added ${name} – check Roster`);
         setTimeout(() => setAddNote(null), 2000);
@@ -935,19 +943,21 @@ const PickleballTournamentManager = () => {
       return 'male';
     };
     for (const line of lines) {
-      const [name, ratingStr, gender] = line.split(',').map((s) => (s ?? '').trim());
+      const [name, ratingStr, gender, email, phone] = line.split(',').map((s) => (s ?? '').trim());
       const rating = Number(ratingStr);
-      if (!name || Number.isNaN(rating)) continue;
-      add.push({ name, rating, gender: normalizeGender(gender), present: true });
+      if (!name || Number.isNaN(rating) || !email || !phone) continue;
+      add.push({ name, rating, gender: normalizeGender(gender), email, phone, present: true });
     }
-    if (!add.length) return alert('Nothing to add. Use: Name, Rating, Gender');
+    if (!add.length) return alert('Nothing to add. Use format: Name, Rating, Gender, Email, Phone');
 
     // Attempt to persist to the global roster via API
     try {
       const apiPayload = add.map(p => ({
         player_name: p.name,
         dupr_rating: p.rating,
-        gender: p.gender
+        gender: p.gender,
+        email: p.email,
+        phone: p.phone
       }));
       
       const { success, data } = await api.players.bulkCreate(apiPayload);
@@ -959,6 +969,8 @@ const PickleballTournamentManager = () => {
           name: p.player_name,
           rating: Number(p.dupr_rating),
           gender: p.gender,
+          email: p.email,
+          phone: p.phone,
           present: true
         }));
         setPlayers((prev) => [...prev, ...dbPlayers]);
@@ -2465,12 +2477,12 @@ const PickleballTournamentManager = () => {
 
             <Card className="md:col-span-2">
               <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Add players</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 sm:gap-3">
                 <input
                   placeholder="Name"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
                 />
                 <input
                   type="number"
@@ -2480,16 +2492,30 @@ const PickleballTournamentManager = () => {
                   placeholder="DUPR"
                   value={form.rating}
                   onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))}
-                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
                 />
                 <select
                   value={form.gender}
                   onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
-                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
                 >
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                 </select>
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone number"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
+                />
                 <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full" onClick={addPlayer}>
                   Add player
                 </Button>
@@ -2497,15 +2523,15 @@ const PickleballTournamentManager = () => {
 
               <details className="mt-3">
                 <summary className="cursor-pointer text-sm text-brand-primary/80">
-                  Add multiple players at once <em>(one per line: Name, Rating, Gender)</em>
+                  Add multiple players at once <em>(one per line: Name, Rating, Gender, Email, Phone)</em>
                 </summary>
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <textarea
                     rows={6}
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
-                    className="col-span-1 sm:col-span-3 rounded-lg border border-brand-gray px-3 py-2 focus:border-brand-secondary focus:ring-brand-secondary"
-                    placeholder={`Jane Doe, 3.2, Female\nJohn Smith, 3.6, M`}
+                    className="col-span-1 sm:col-span-3 rounded-lg border border-brand-gray px-3 py-2 focus:border-brand-secondary focus:ring-brand-secondary text-sm"
+                    placeholder={`Jane Doe, 3.2, Female, jane@example.com, (555) 123-4567\nJohn Smith, 3.6, Male, john@example.com, 555-987-6543`}
                   />
                   <div>
                     <Button className="bg-brand-secondary text-brand-primary hover:bg-brand-secondary/80 w-full" onClick={parseBulk}>

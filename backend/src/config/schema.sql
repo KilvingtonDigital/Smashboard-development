@@ -91,4 +91,14 @@ CREATE TABLE IF NOT EXISTS tournament_registrations (
   UNIQUE(tournament_id, player_id)
 );
 
+-- MIGRATION: Add unique indexes for phone and email to enforce database level safety nets
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_phone_per_user 
+ON players (user_id, phone) 
+WHERE phone IS NOT NULL AND phone != '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_email_per_user 
+ON players (user_id, LOWER(email)) 
+WHERE email IS NOT NULL AND email != '';
+
+
 

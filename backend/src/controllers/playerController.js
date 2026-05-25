@@ -9,13 +9,15 @@ exports.createPlayer = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { player_name, dupr_rating, gender } = req.body;
+    const { player_name, dupr_rating, gender, email, phone } = req.body;
 
     const player = await Player.create({
       user_id: req.user.id,
       player_name,
       dupr_rating,
-      gender
+      gender,
+      email,
+      phone
     });
 
     res.status(201).json({

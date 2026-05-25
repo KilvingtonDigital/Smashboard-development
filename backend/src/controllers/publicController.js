@@ -53,6 +53,10 @@ exports.registerPlayer = async (req, res) => {
       return res.status(400).json({ error: 'First name and DUPR rating are required' });
     }
 
+    if (!email || !phone) {
+      return res.status(400).json({ error: 'Email address and mobile phone number are strictly required for registration.' });
+    }
+
     if (!waiverSigned) {
       return res.status(400).json({ error: 'You must agree to the Terms of Service and Liability Waiver to register.' });
     }
