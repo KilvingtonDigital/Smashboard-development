@@ -11,6 +11,9 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedId, setCopiedId] = useState('');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrModalData, setQRModalData] = useState(null);
+  const [copiedLobbyId, setCopiedLobbyId] = useState('');
 
   const [form, setForm] = useState({
     name: '',
@@ -230,21 +233,30 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
 
                   {/* Card footer buttons */}
                   <div className="p-6 pt-0 border-t border-[#222]/40 bg-black/20 space-y-3">
-                    {/* Share / Copy Link button */}
-                    <button
-                      onClick={(e) => copyRegistrationLink(e, t.id)}
-                      className={`w-full h-10 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all ${
-                        copiedId === t.id
-                          ? 'bg-lime/10 border-lime text-lime'
-                          : 'bg-[#1a1a1a] border-[#2e2e2e] text-gray-300 hover:bg-[#252525] hover:text-white'
-                      }`}
-                    >
-                      {copiedId === t.id ? (
-                        <>✓ Registration Link Copied!</>
-                      ) : (
-                        <>🔗 Copy Registration Link</>
-                      )}
-                    </button>
+                    {/* Share / Copy Link and QR / TV buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={(e) => copyRegistrationLink(e, t.id)}
+                        className={`h-10 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all ${
+                          copiedId === t.id
+                            ? 'bg-lime/10 border-lime text-lime'
+                            : 'bg-[#1a1a1a] border-[#2e2e2e] text-gray-300 hover:bg-[#252525] hover:text-white'
+                        }`}
+                      >
+                        {copiedId === t.id ? '✓ Copied!' : '🔗 Join Link'}
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQRModalData({ id: t.id, name: t.tournament_name });
+                          setShowQRModal(true);
+                        }}
+                        className="h-10 rounded-xl font-bold text-xs bg-[#1a1a1a] border border-[#2e2e2e] text-gray-300 hover:bg-[#252525] hover:text-white flex items-center justify-center gap-2 transition-all"
+                      >
+                        📲 QR & TV Lobby
+                      </button>
+                    </div>
 
                     {/* Manage event button */}
                     <div className="flex gap-2">
@@ -350,6 +362,93 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
                 Schedule & Open Registration
               </button>
             </form>
+          </div>
+        </div>
+      {/* CHECK-IN QR & LOBBY TV MODAL */}
+      {showQRModal && qrModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#111] border border-[#222] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+            <div className="flex justify-between items-center pb-4 border-b border-[#222]">
+              <h2 className="text-lg font-black tracking-tight text-left leading-snug">
+                Event check-in details<br/>
+                <span className="text-xs font-bold text-gray-400">{qrModalData.name}</span>
+              </h2>
+              <button 
+                onClick={() => {
+                  setShowQRModal(false);
+                  setQRModalData(null);
+                }}
+                className="text-gray-400 hover:text-white text-xl font-bold leading-none p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center space-y-4">
+              <div className="bg-white p-3 rounded-2xl border-4 border-lime shadow-xl">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/join/${user?.registrationSlug}/${qrModalData.id}?checkin=true`)}`}
+                  alt="Check-in QR Code"
+                  className="w-48 h-48"
+                />
+              </div>
+              <p className="text-xs font-semibold text-gray-400 max-w-[260px] leading-relaxed">
+                Display this QR code at the check-in table. Players scan this to instantly check in from their mobile phones.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                onClick={() => {
+                  const checkinUrl = `${window.location.origin}/join/${user?.registrationSlug}/${qrModalData.id}?checkin=true`;
+                  const printWindow = window.open('', '_blank');
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Print Check-In Poster</title>
+                        <style>
+                          body { font-family: sans-serif; text-align: center; padding: 40px; color: #111; }
+                          .container { max-width: 500px; margin: 0 auto; border: 4px solid #111; padding: 40px; border-radius: 24px; }
+                          h1 { font-size: 32px; font-weight: 900; margin-bottom: 8px; }
+                          p { font-size: 16px; font-weight: 600; color: #555; margin-bottom: 24px; }
+                          img { width: 300px; height: 300px; margin: 20px 0; }
+                          .footer { font-size: 12px; color: #999; margin-top: 30px; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="container">
+                          <h1>Contactless Check-In</h1>
+                          <p>Scan with your phone to sign in for <br/><strong>\${qrModalData.name}</strong></p>
+                          <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(checkinUrl)}" />
+                          <div class="footer">Powered by DinkSync</div>
+                        </div>
+                        <script>window.onload = function() { window.print(); }</script>
+                      </body>
+                    </html>
+                  `);
+                  printWindow.document.close();
+                }}
+                className="w-full h-11 bg-lime text-black font-black text-xs rounded-xl hover:bg-[#d6f060] transition-all flex items-center justify-center gap-2"
+              >
+                🖨️ Print Check-In Poster
+              </button>
+
+              <button
+                onClick={() => {
+                  const lobbyLink = `${window.location.origin}/lobby/${qrModalData.id}`;
+                  navigator.clipboard.writeText(lobbyLink);
+                  setCopiedLobbyId(qrModalData.id);
+                  setTimeout(() => setCopiedLobbyId(''), 2000);
+                }}
+                className={`w-full h-11 rounded-xl font-bold text-xs border transition-all flex items-center justify-center gap-2 ${
+                  copiedLobbyId === qrModalData.id
+                    ? 'bg-lime/10 border-lime text-lime'
+                    : 'bg-[#1a1a1a] border-[#2e2e2e] text-gray-300 hover:bg-[#252525] hover:text-white'
+                }`}
+              >
+                {copiedLobbyId === qrModalData.id ? '✓ Lobby Link Copied!' : '📺 Copy Screencast TV Lobby Link'}
+              </button>
+            </div>
           </div>
         </div>
       )}

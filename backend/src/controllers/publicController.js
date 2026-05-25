@@ -246,3 +246,152 @@ exports.getPlayerDashboard = async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve player dashboard data' });
   }
 };
+
+// Contactless checkin endpoint
+exports.checkinPlayer = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { slug, tournamentId } = req.params;
+    const { playerIdent } = req.body;
+
+    if (!playerIdent) {
+      return res.status(400).json({ error: 'Mobile number or email address is required' });
+    }
+
+    const user = await User.findByRegistrationSlug(slug);
+    if (!user) {
+      return res.status(404).json({ error: 'Invalid registration link' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Fetch active tournament
+    const tResult = await client.query(
+      'SELECT id, tournament_data FROM tournaments WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [tournamentId, user.id]
+    );
+
+    if (tResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    const tournament = tResult.rows[0];
+    const data = tournament.tournament_data || {};
+    const players = data.players || [];
+
+    const cleanIdent = playerIdent.toString().trim().toLowerCase();
+    const cleanPhoneIdent = cleanIdent.replace(/\D/g, '');
+
+    // 2. Locate player in the active session roster
+    let matchedPlayerIndex = players.findIndex(p => {
+      const pEmail = p.email ? p.email.toString().trim().toLowerCase() : '';
+      const pPhone = p.phone ? p.phone.toString().replace(/\D/g, '') : '';
+      const pId = p.id ? p.id.toString() : '';
+      return pEmail === cleanIdent || (cleanPhoneIdent && pPhone === cleanPhoneIdent) || pId === cleanIdent;
+    });
+
+    if (matchedPlayerIndex === -1) {
+      // Look up master roster in players table
+      const masterRes = await client.query(
+        `SELECT * FROM players 
+         WHERE user_id = $1 AND (LOWER(email) = $2 OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') = $3) 
+         LIMIT 1`,
+        [user.id, cleanIdent, cleanPhoneIdent]
+      );
+
+      if (masterRes.rows.length > 0) {
+        const masterPlayer = masterRes.rows[0];
+        // Add them to this active session
+        players.push({
+          id: masterPlayer.id,
+          name: masterPlayer.player_name,
+          rating: Number(masterPlayer.dupr_rating),
+          gender: masterPlayer.gender,
+          email: masterPlayer.email,
+          phone: masterPlayer.phone,
+          present: true
+        });
+        matchedPlayerIndex = players.length - 1;
+
+        await client.query(
+          `INSERT INTO tournament_registrations (tournament_id, player_id)
+           VALUES ($1, $2)
+           ON CONFLICT (tournament_id, player_id) DO NOTHING`,
+          [tournamentId, masterPlayer.id]
+        );
+      } else {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'You are not registered. Please register first.' });
+      }
+    } else {
+      players[matchedPlayerIndex].present = true;
+    }
+
+    const updatedData = { ...data, players };
+
+    // 3. Write back session state
+    await client.query(
+      'UPDATE tournaments SET tournament_data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [JSON.stringify(updatedData), tournamentId]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `${players[matchedPlayerIndex].name} checked in successfully!`,
+      player: players[matchedPlayerIndex]
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Checkin API error:', error);
+    res.status(500).json({ error: 'Failed to complete checkin' });
+  } finally {
+    client.release();
+  }
+};
+
+// Expose tournament checkin directory for TV screen cast lobby
+exports.getTournamentLobby = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+
+    const tResult = await pool.query(
+      'SELECT id, tournament_name, tournament_type, tournament_data, is_active_session FROM tournaments WHERE id = $1',
+      [tournamentId]
+    );
+
+    if (tResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    const tournament = tResult.rows[0];
+    const data = tournament.tournament_data || {};
+    const players = data.players || [];
+
+    const roster = players.map(p => ({
+      id: p.id,
+      name: p.name,
+      rating: p.rating,
+      gender: p.gender,
+      present: p.present !== false
+    })).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({
+      success: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.tournament_name,
+        type: tournament.tournament_type,
+        isActive: tournament.is_active_session
+      },
+      players: roster
+    });
+
+  } catch (error) {
+    console.error('Lobby API error:', error);
+    res.status(500).json({ error: 'Failed to retrieve lobby check-in details' });
+  }
+};

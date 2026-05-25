@@ -13,4 +13,10 @@ router.post('/join/:slug/:tournamentId', publicController.registerPlayer);
 // Player portal dashboard live data extraction
 router.get('/tournament/:tournamentId/player/:playerIdent', publicController.getPlayerDashboard);
 
+// Contactless checkin
+router.post('/join/:slug/:tournamentId/checkin', publicController.checkinPlayer);
+
+// Screencast TV Lobby list
+router.get('/tournament/:tournamentId/lobby', publicController.getTournamentLobby);
+
 module.exports = router;

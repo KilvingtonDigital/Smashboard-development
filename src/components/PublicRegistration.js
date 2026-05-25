@@ -8,6 +8,11 @@ const PublicRegistration = ({ slug, tournamentId }) => {
   const [status, setStatus] = useState('loading'); // 'loading' | 'form' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [isCheckinMode, setIsCheckinMode] = useState(false);
+  const [checkinIdent, setCheckinIdent] = useState('');
+  const [checkinSuccess, setCheckinSuccess] = useState(false);
+  const [checkinPlayerName, setCheckinPlayerName] = useState('');
+
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -20,6 +25,11 @@ const PublicRegistration = ({ slug, tournamentId }) => {
   });
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkin') === 'true') {
+      setIsCheckinMode(true);
+    }
+
     const fetchOrgAndTournament = async () => {
       try {
         const url = tournamentId 
@@ -43,6 +53,37 @@ const PublicRegistration = ({ slug, tournamentId }) => {
     };
     fetchOrgAndTournament();
   }, [slug, tournamentId]);
+
+  const handleCheckin = async (e) => {
+    e.preventDefault();
+    if (!checkinIdent.trim()) {
+      return alert("Mobile number or email address is required.");
+    }
+
+    try {
+      setStatus('submitting');
+      const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/public/join/${slug}/${tournamentId}/checkin`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerIdent: checkinIdent })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Check-in failed');
+      }
+
+      const data = await response.json();
+      setCheckinPlayerName(data.player.name);
+      setCheckinSuccess(true);
+      setStatus('success');
+    } catch (err) {
+      alert(`Check-in failed: ${err.message}`);
+      setStatus('form');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,6 +142,78 @@ const PublicRegistration = ({ slug, tournamentId }) => {
           >
             Go to Homepage
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCheckinMode) {
+    if (status === 'success' && checkinSuccess) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-brand-light p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-soft text-center py-10 border border-brand-gray/30">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-2xl font-black text-brand-primary mb-2">Checked In!</h2>
+            <p className="text-sm font-semibold text-brand-primary/70 mb-8 max-w-[280px] mx-auto leading-relaxed">
+              Welcome, <strong>{checkinPlayerName}</strong>! You have successfully signed in. Your name is now green on the Lobby TV check-in board.
+            </p>
+            <button 
+              onClick={() => {
+                setCheckinIdent('');
+                setCheckinSuccess(false);
+                setStatus('form');
+              }}
+              className="w-full bg-brand-secondary/20 text-brand-primary font-bold py-3 px-4 rounded-xl hover:bg-brand-secondary/30 transition-colors text-sm"
+            >
+              Check In Another Player
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-brand-light font-sans p-4">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-brand-gray/30">
+          <div className="text-center mb-6">
+            <div className="grid h-8 w-8 place-items-center mx-auto mb-3 rounded-lg bg-brand-primary text-white font-bold text-sm tracking-tight"><span><span className="text-white">D</span><span className="text-brand-secondary">S</span></span></div>
+            <h1 className="text-sm font-bold text-brand-primary/40 uppercase tracking-widest mb-1">Contactless Check-In</h1>
+            <h2 className="text-2xl font-black text-brand-primary leading-tight">
+              {tournamentName ? `Check In for ${tournamentName}` : `Check In`}
+            </h2>
+            <p className="text-xs font-semibold text-brand-primary/50 mt-2">Hosted by {orgName}</p>
+          </div>
+
+          <form onSubmit={handleCheckin} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-brand-primary uppercase tracking-wide ml-1">Phone Number or Email</label>
+              <input
+                type="text"
+                required
+                value={checkinIdent}
+                onChange={(e) => setCheckinIdent(e.target.value)}
+                className="w-full h-11 bg-brand-light rounded-xl border border-brand-primary/10 px-4 py-2 text-brand-primary placeholder-brand-primary/30 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:bg-white transition-all text-sm"
+                placeholder="e.g. (555) 123-4567 or jane@example.com"
+              />
+              <p className="text-[10px] text-brand-primary/40 font-medium ml-1 mt-1 leading-normal text-left">
+                Enter the mobile phone number or email address you used when registering for this tournament.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={status === 'submitting'}
+              className="w-full h-12 bg-brand-secondary text-brand-primary font-bold text-base rounded-xl hover:bg-[#d6f060] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0 transition-all mt-4 shadow-sm shadow-brand-secondary/20"
+            >
+              {status === 'submitting' ? 'Checking in...' : 'Confirm Check-In'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <a href="https://dinksync.com" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-primary/40 hover:text-brand-primary/60 transition-colors">
+              Powered by DinkSync
+            </a>
+          </div>
         </div>
       </div>
     );

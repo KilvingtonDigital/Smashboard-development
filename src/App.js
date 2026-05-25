@@ -10,6 +10,7 @@ import TournamentsDashboard from './components/TournamentsDashboard';
 
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
+import LobbyDashboard from './components/LobbyDashboard';
 
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
@@ -57,6 +58,14 @@ function AppContent() {
 
   if (path === '/waiver') { return <LegalWaiver />; }
   if (path === '/terms') { return <TermsOfService />; }
+
+  // Screencast TV Lobby Dashboard Check
+  if (path.startsWith('/lobby/')) {
+    const tournamentId = path.split('/lobby/')[1];
+    if (tournamentId) {
+      return <LobbyDashboard tournamentId={tournamentId} />;
+    }
+  }
 
   // Check if we are on the public registration route (supports optional tournamentId)
   if (path.startsWith('/join/')) {
