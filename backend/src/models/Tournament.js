@@ -2,12 +2,12 @@ const pool = require('../config/database');
 
 class Tournament {
   // Create a new tournament
-  static async create({ user_id, tournament_name, tournament_type, num_courts, tournament_data, event_date }) {
+  static async create({ user_id, tournament_name, tournament_type, num_courts, tournament_data, event_date, registration_fee = 0.00 }) {
     const result = await pool.query(
-      `INSERT INTO tournaments (user_id, tournament_name, tournament_type, num_courts, tournament_data, event_date)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO tournaments (user_id, tournament_name, tournament_type, num_courts, tournament_data, event_date, registration_fee)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [user_id, tournament_name, tournament_type, num_courts, JSON.stringify(tournament_data || { players: [] }), event_date]
+      [user_id, tournament_name, tournament_type, num_courts, JSON.stringify(tournament_data || { players: [] }), event_date, registration_fee]
     );
     return result.rows[0];
   }
@@ -37,7 +37,7 @@ class Tournament {
 
   // Update tournament
   static async update(id, user_id, updates) {
-    const { tournament_name, tournament_type, num_courts, tournament_data, event_date } = updates;
+    const { tournament_name, tournament_type, num_courts, tournament_data, event_date, registration_fee } = updates;
 
     const result = await pool.query(
       `UPDATE tournaments
@@ -46,8 +46,9 @@ class Tournament {
            num_courts = COALESCE($3, num_courts),
            tournament_data = COALESCE($4, tournament_data),
            event_date = COALESCE($5, event_date),
+           registration_fee = COALESCE($6, registration_fee),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6 AND user_id = $7
+       WHERE id = $7 AND user_id = $8
        RETURNING *`,
       [
         tournament_name,
@@ -55,6 +56,7 @@ class Tournament {
         num_courts,
         tournament_data ? JSON.stringify(tournament_data) : null,
         event_date,
+        registration_fee,
         id,
         user_id
       ]

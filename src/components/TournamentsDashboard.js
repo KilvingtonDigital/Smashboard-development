@@ -19,7 +19,8 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
     name: '',
     type: 'roundRobin',
     numCourts: 4,
-    eventDate: ''
+    eventDate: '',
+    registrationFee: '0.00'
   });
 
   const loadTournaments = async () => {
@@ -54,13 +55,14 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
         tournament_type: form.type,
         num_courts: parseInt(form.numCourts, 10),
         event_date: form.eventDate,
+        registration_fee: parseFloat(form.registrationFee) || 0.00,
         tournament_data: { players: [], rounds: [], matches: [], currentRound: 0 }
       };
 
       const res = await api.tournaments.create(payload);
       if (res.success) {
         setShowCreateModal(false);
-        setForm({ name: '', type: 'roundRobin', numCourts: 4, eventDate: '' });
+        setForm({ name: '', type: 'roundRobin', numCourts: 4, eventDate: '', registrationFee: '0.00' });
         loadTournaments();
       } else {
         alert(res.error || 'Failed to create tournament');
@@ -351,6 +353,23 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
                     value={form.numCourts}
                     onChange={(e) => setForm({ ...form, numCourts: e.target.value })}
                     className="w-full h-11 bg-black border border-[#222] rounded-xl px-4 text-white text-sm focus:outline-none focus:border-lime transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Registration Fee (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    placeholder="0.00 (Free)"
+                    value={form.registrationFee}
+                    onChange={(e) => setForm({ ...form, registrationFee: e.target.value })}
+                    className="w-full h-11 bg-black border border-[#222] rounded-xl pl-8 pr-4 text-white text-sm focus:outline-none focus:border-lime transition-all"
                   />
                 </div>
               </div>

@@ -14,14 +14,16 @@ exports.validateSlug = async (req, res) => {
 
     const orgName = user.organization_name || `${user.first_name || 'The Organizer'}'s`;
     let tournamentName = '';
+    let registrationFee = 0.00;
 
     if (tournamentId) {
       const tResult = await pool.query(
-        'SELECT tournament_name FROM tournaments WHERE id = $1 AND user_id = $2',
+        'SELECT tournament_name, registration_fee FROM tournaments WHERE id = $1 AND user_id = $2',
         [tournamentId, user.id]
       );
       if (tResult.rows.length > 0) {
         tournamentName = tResult.rows[0].tournament_name;
+        registrationFee = Number(tResult.rows[0].registration_fee || 0.00);
       } else {
         return res.status(404).json({ error: 'Tournament not found' });
       }
@@ -30,7 +32,8 @@ exports.validateSlug = async (req, res) => {
     res.json({
       success: true,
       orgName,
-      tournamentName
+      tournamentName,
+      registrationFee
     });
   } catch (error) {
     console.error('Slug validation error:', error);

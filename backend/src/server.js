@@ -19,6 +19,9 @@ app.use(cors({
   origin: true, // Temporarily allow all origins to bypass env var issues
   credentials: true
 }));
+// Stripe Webhook endpoint requires raw body parser before express.json()
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), require('./controllers/paymentController').handleWebhook);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -53,6 +56,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/session', sessionRoutes);
 app.use('/api/public', require('./routes/public'));
+app.use('/api/payments', require('./routes/payments'));
 
 // 404 handler
 app.use((req, res) => {

@@ -100,5 +100,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_players_email_per_user
 ON players (user_id, LOWER(email)) 
 WHERE email IS NOT NULL AND email != '';
 
+-- MIGRATION: Add registration fee to tournaments
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS registration_fee DECIMAL(10, 2) DEFAULT 0.00;
+
+-- MIGRATION: Update registrations for payment tracking
+ALTER TABLE tournament_registrations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'unpaid';
+ALTER TABLE tournament_registrations ADD COLUMN IF NOT EXISTS payment_session_id VARCHAR(255);
+ALTER TABLE tournament_registrations ADD COLUMN IF NOT EXISTS payment_amount DECIMAL(10, 2) DEFAULT 0.00;
+
 
 

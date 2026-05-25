@@ -5,6 +5,7 @@ const PublicRegistration = ({ slug, tournamentId }) => {
   const api = useAPI();
   const [orgName, setOrgName] = useState('');
   const [tournamentName, setTournamentName] = useState('');
+  const [registrationFee, setRegistrationFee] = useState(0.00);
   const [status, setStatus] = useState('loading'); // 'loading' | 'form' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -30,6 +31,12 @@ const PublicRegistration = ({ slug, tournamentId }) => {
       setIsCheckinMode(true);
     }
 
+    if (params.get('payment') === 'success') {
+      setStatus('success');
+    } else if (params.get('payment') === 'cancel') {
+      alert('Checkout was cancelled. Please complete payment to complete registration.');
+    }
+
     const fetchOrgAndTournament = async () => {
       try {
         const url = tournamentId 
@@ -45,7 +52,14 @@ const PublicRegistration = ({ slug, tournamentId }) => {
         if (data.tournamentName) {
           setTournamentName(data.tournamentName);
         }
-        setStatus('form');
+        if (data.registrationFee) {
+          setRegistrationFee(Number(data.registrationFee));
+        }
+        
+        // Only override to form status if not redirected back from Stripe success
+        if (params.get('payment') !== 'success') {
+          setStatus('form');
+        }
       } catch (err) {
         setStatus('error');
         setErrorMsg(err.message);
@@ -99,6 +113,31 @@ const PublicRegistration = ({ slug, tournamentId }) => {
 
     try {
       setStatus('submitting');
+
+      if (tournamentId && registrationFee > 0) {
+        // Paid registration - create secure Stripe Checkout Session
+        const checkoutUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/payments/checkout-session`;
+        const response = await fetch(checkoutUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tournamentId,
+            ...form
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to initiate checkout session');
+        }
+
+        const data = await response.json();
+        // Redirect directly to the secure hosted Stripe Checkout page!
+        window.location.href = data.url;
+        return;
+      }
+
+      // Free registration
       const url = tournamentId 
         ? `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/public/join/${slug}/${tournamentId}`
         : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/public/join/${slug}`;
@@ -232,6 +271,21 @@ const PublicRegistration = ({ slug, tournamentId }) => {
               <>You've been successfully added to <strong>{orgName}</strong> roster.</>
             )}
           </p>
+
+          {registrationFee > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 mb-8 text-left space-y-1 max-w-[280px] mx-auto shadow-sm">
+              <div className="flex justify-between text-xs text-emerald-800 font-bold uppercase tracking-wide">
+                <span>Payment Confirmed</span>
+                <span>✓ Paid</span>
+              </div>
+              <div className="text-sm font-black text-emerald-900 mt-1">
+                Entry Fee: ${registrationFee.toFixed(2)} USD
+              </div>
+              <p className="text-[10px] text-emerald-700/80 font-semibold mt-1 leading-normal">
+                Your registration fee is fully settled. Checked-in lobby dashboards are synchronized! 🏓
+              </p>
+            </div>
+          )}
           <button 
             onClick={() => {
               setForm({
@@ -414,7 +468,12 @@ const PublicRegistration = ({ slug, tournamentId }) => {
             disabled={status === 'submitting'}
             className="w-full h-12 bg-brand-secondary text-brand-primary font-bold text-base rounded-xl hover:bg-[#d6f060] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0 transition-all mt-4 shadow-sm shadow-brand-secondary/20"
           >
-            {status === 'submitting' ? 'Registering...' : 'Register'}
+            {status === 'submitting' 
+              ? 'Processing...' 
+              : registrationFee > 0 
+                ? `Checkout & Pay $${registrationFee.toFixed(2)}` 
+                : 'Register'
+            }
           </button>
         </form>
 
