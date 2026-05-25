@@ -380,6 +380,7 @@ const PickleballTournamentManager = () => {
   const { loadSession, saveSession, forceSaveSession, clearSession } = useSessionSync();
   const isClearingSession = useRef(false); // prevents autosave race during End & Clear
   const sessionRestoredRef = useRef(false); // prevents autosave from firing before restore
+  const phoneInputRef = useRef(null);
   const [players, setPlayers] = useState([]);
   const [tournamentId, setTournamentId] = useState(null);
   const [form, setForm] = useState({ name: '', rating: '', gender: 'male', email: '', phone: '' });
@@ -2477,6 +2478,41 @@ const PickleballTournamentManager = () => {
 
             <Card className="md:col-span-2">
               <h3 className="text-sm font-semibold text-brand-primary mb-2 sm:mb-3">Add players</h3>
+              
+              {/* Host-as-player Quick Bridge Banner */}
+              {user && !players.some(p => p.email && p.email.toLowerCase() === user.email.toLowerCase()) && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-brand-secondary/10 border border-brand-secondary/35 rounded-xl mb-4 space-y-2 sm:space-y-0">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xl">👋</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-brand-primary">Playing in your own event?</h4>
+                      <p className="text-[10px] font-semibold text-brand-primary/60 mt-0.5">Quickly add yourself to this tournament's roster with one click.</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                      setForm(f => ({
+                        ...f,
+                        name: fullName || user.username || '',
+                        email: user.email || '',
+                        rating: '3.5',
+                        gender: 'male',
+                        phone: ''
+                      }));
+                      setTimeout(() => {
+                        if (phoneInputRef.current) {
+                          phoneInputRef.current.focus();
+                        }
+                      }, 50);
+                    }}
+                    className="bg-brand-secondary text-brand-primary hover:bg-[#d6f060] font-bold text-[10px] uppercase tracking-wider h-8 px-3.5 rounded-lg transition-all"
+                  >
+                    Add Myself
+                  </Button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 sm:gap-3">
                 <input
                   placeholder="Name"
@@ -2511,6 +2547,7 @@ const PickleballTournamentManager = () => {
                 />
                 <input
                   type="tel"
+                  ref={phoneInputRef}
                   placeholder="Phone number"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
