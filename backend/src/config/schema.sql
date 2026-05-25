@@ -86,3 +86,12 @@ ALTER TABLE players ADD COLUMN IF NOT EXISTS dupr_id VARCHAR(100);
 ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_signed BOOLEAN DEFAULT FALSE;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_timestamp TIMESTAMP;
 
+-- MIGRATION: Add age category to players
+ALTER TABLE players ADD COLUMN IF NOT EXISTS age_category VARCHAR(20) DEFAULT 'adult';
+
+-- MIGRATION: Add division restriction gates to tournaments
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS restricted_skill VARCHAR(50) DEFAULT 'all';
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS restricted_age VARCHAR(20) DEFAULT 'all';
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS restricted_gender VARCHAR(10) DEFAULT 'all';
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS bracket_format VARCHAR(20) DEFAULT 'single_elim';
+

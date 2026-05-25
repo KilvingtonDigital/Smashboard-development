@@ -14,6 +14,8 @@ import {
   generateKingOfCourtTeamedRound, initializeKingOfCourtTeamStats, updateKOTTeamStats,
   generateBalancedKOTTeams
 } from './schedulers/kingOfCourtScheduler';
+import { generateBracket, advanceTournamentWinner } from './schedulers/bracketScheduler';
+import BracketView from './components/BracketView';
 
 // Version 3.2 - King of Court implementation + Round Robin
 
@@ -399,6 +401,11 @@ const PickleballTournamentManager = () => {
   const [separateBySkill, setSeparateBySkill] = useState(true);
   const [preferMixedDoubles, setPreferMixedDoubles] = useState(true);  // Gender-aware pairing for doubles
   const [femaleRestInterval, setFemaleRestInterval] = useState(2);     // Rest after N consecutive rounds
+  const [bracketFormat, setBracketFormat] = useState('single_elim');
+  const [restrictedSkill, setRestrictedSkill] = useState('all');
+  const [restrictedAge, setRestrictedAge] = useState('all');
+  const [restrictedGender, setRestrictedGender] = useState('all');
+  const [bracket, setBracket] = useState(null);
 
   const [rounds, setRounds] = useState([]);
   const [currentRound, setCurrentRound] = useState(0);
@@ -433,6 +440,7 @@ const PickleballTournamentManager = () => {
         if (cloudSnap.players?.length) setPlayers(cloudSnap.players);
         if (cloudSnap.tournamentName) setTournamentName(cloudSnap.tournamentName);
         if (cloudSnap.teams?.length) setTeams(cloudSnap.teams);
+        if (cloudSnap.bracket) setBracket(cloudSnap.bracket);
         if (cloudSnap.meta) {
           if (cloudSnap.meta.courts) setCourts(cloudSnap.meta.courts);
           if (cloudSnap.meta.sessionMinutes) setSessionMinutes(cloudSnap.meta.sessionMinutes);
@@ -441,6 +449,10 @@ const PickleballTournamentManager = () => {
           if (cloudSnap.meta.gameFormat) setGameFormat(cloudSnap.meta.gameFormat);
           if (cloudSnap.meta.matchFormat) setMatchFormat(cloudSnap.meta.matchFormat);
           if (typeof cloudSnap.meta.separateBySkill === 'boolean') setSeparateBySkill(cloudSnap.meta.separateBySkill);
+          if (cloudSnap.meta.bracketFormat) setBracketFormat(cloudSnap.meta.bracketFormat);
+          if (cloudSnap.meta.restrictedSkill) setRestrictedSkill(cloudSnap.meta.restrictedSkill);
+          if (cloudSnap.meta.restrictedAge) setRestrictedAge(cloudSnap.meta.restrictedAge);
+          if (cloudSnap.meta.restrictedGender) setRestrictedGender(cloudSnap.meta.restrictedGender);
         }
         // Restore round-specific state only when there are actual rounds
         if (cloudSnap.rounds?.length) {
@@ -473,6 +485,7 @@ const PickleballTournamentManager = () => {
           if (snap.players?.length) setPlayers(snap.players);
           if (snap.tournamentName) setTournamentName(snap.tournamentName);
           if (snap.teams?.length) setTeams(snap.teams);
+          if (snap.bracket) setBracket(snap.bracket);
           if (snap.meta) {
             if (snap.meta.courts) setCourts(snap.meta.courts);
             if (snap.meta.sessionMinutes) setSessionMinutes(snap.meta.sessionMinutes);
@@ -481,6 +494,10 @@ const PickleballTournamentManager = () => {
             if (snap.meta.gameFormat) setGameFormat(snap.meta.gameFormat);
             if (snap.meta.matchFormat) setMatchFormat(snap.meta.matchFormat);
             if (typeof snap.meta.separateBySkill === 'boolean') setSeparateBySkill(snap.meta.separateBySkill);
+            if (snap.meta.bracketFormat) setBracketFormat(snap.meta.bracketFormat);
+            if (snap.meta.restrictedSkill) setRestrictedSkill(snap.meta.restrictedSkill);
+            if (snap.meta.restrictedAge) setRestrictedAge(snap.meta.restrictedAge);
+            if (snap.meta.restrictedGender) setRestrictedGender(snap.meta.restrictedGender);
           }
           // Restore round state only when rounds exist
           if (snap.rounds?.length) {
@@ -589,7 +606,8 @@ const PickleballTournamentManager = () => {
     const snapshot = {
       players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates,
       tournamentName,
-      meta: { courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, ts: Date.now() },
+      bracket,
+      meta: { courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, bracketFormat, restrictedSkill, restrictedAge, restrictedGender, ts: Date.now() },
       locked
     };
     localStorage.setItem('pb_session', JSON.stringify(snapshot));
@@ -598,9 +616,13 @@ const PickleballTournamentManager = () => {
       ...snapshot,
       tournamentName: tournamentName || 'Active Session',
       tournamentType: tournamentType || 'round_robin',
-      numCourts: courts
+      numCourts: courts,
+      restrictedSkill,
+      restrictedAge,
+      restrictedGender,
+      bracketFormat
     });
-  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName]); // eslint-disable-line
+  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName, bracket, bracketFormat, restrictedSkill, restrictedAge, restrictedGender]); // eslint-disable-line
 
   useEffect(() => {
     const handler = (e) => {
@@ -1673,6 +1695,20 @@ const PickleballTournamentManager = () => {
       console.log('Generating round with format:', effectiveMatchFormat);
       console.log('Generating round with format:', effectiveMatchFormat);
 
+      if (tournamentType === 'bracket') {
+        if (gameFormat === 'teamed_doubles' && teams.length < 2) {
+          return alert('Need at least 2 pre-formed teams to generate bracket matchups.');
+        }
+        if (gameFormat !== 'teamed_doubles' && presentPlayers.length < 2) {
+          return alert('Need at least 2 present players to generate bracket matchups.');
+        }
+        const generated = generateBracket(presentPlayers, teams, bracketFormat, gameFormat);
+        setBracket(generated);
+        setTab('schedule');
+        setLocked(true);
+        return;
+      }
+
       if (tournamentType === 'round_robin') {
         // Check game format
         if (gameFormat === 'singles') {
@@ -1876,6 +1912,15 @@ const PickleballTournamentManager = () => {
     }
   };
 
+  const handleBracketMatchScore = (matchId, winnerSide, scores) => {
+    setBracket(prev => {
+      if (!prev) return prev;
+      const updated = JSON.parse(JSON.stringify(prev));
+      const advanced = advanceTournamentWinner(updated, matchId, winnerSide, scores);
+      return advanced;
+    });
+  };
+
   const clearAllRounds = () => {
     const confirmClear = window.confirm(
       'Clear all rounds and statistics? This cannot be undone.'
@@ -1889,10 +1934,11 @@ const PickleballTournamentManager = () => {
     setKotTeamStats({});
     setKotAutoTeams([]);
     setTeamStats({});
+    setBracket(null);
     setLocked(false);
     // Securely overwrite cloud session with cleared state
     const currentP = typeof players !== 'undefined' ? players : [];
-    forceSaveSession({ rounds: [], players: currentP, teams: [], playerStats: {}, kotStats: {}, teamStats: {}, kotTeamStats: {}, courtStates: [], currentRound: 0 }).then(() => {
+    forceSaveSession({ rounds: [], players: currentP, teams: [], playerStats: {}, kotStats: {}, teamStats: {}, kotTeamStats: {}, courtStates: [], currentRound: 0, bracket: null }).then(() => {
         clearSession();
         localStorage.removeItem('pb_session');
     });
@@ -2247,7 +2293,7 @@ const PickleballTournamentManager = () => {
                     className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                   />
                 </Field>
-                <Field label="Tournament style">
+                 <Field label="Tournament style">
                   <select
                     value={tournamentType}
                     onChange={(e) => {
@@ -2262,9 +2308,67 @@ const PickleballTournamentManager = () => {
                     className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
                   >
                     <option value="round_robin">Round Robin</option>
+                    <option value="bracket">Elimination Bracket</option>
                     {ENABLE_KOT_V2 && <option value="king_of_court">King of Court</option>}
                   </select>
                 </Field>
+
+                {tournamentType === 'bracket' && (
+                  <>
+                    <Field label="Bracket Format">
+                      <select
+                        value={bracketFormat}
+                        onChange={(e) => setBracketFormat(e.target.value)}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="single_elim">Single Elimination</option>
+                        <option value="double_elim">Double Elimination</option>
+                      </select>
+                    </Field>
+                    
+                    <Field label="Allowed Skill">
+                      <select
+                        value={restrictedSkill}
+                        onChange={(e) => setRestrictedSkill(e.target.value)}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="all">Open (No Restriction)</option>
+                        <option value="2.5-2.9">Novice (2.5 - 2.99)</option>
+                        <option value="3.0-3.4">Intermediate (3.0 - 3.49)</option>
+                        <option value="3.5-3.9">High Intermediate (3.5 - 3.99)</option>
+                        <option value="4.0-4.4">Advanced (4.0 - 4.49)</option>
+                        <option value="4.5-5.0">High Advanced (4.5 - 5.09)</option>
+                        <option value="semi_pro">Semi-Professional (5.1 - 5.49)</option>
+                        <option value="pro">Professional (5.5+)</option>
+                      </select>
+                    </Field>
+
+                    <Field label="Allowed Age">
+                      <select
+                        value={restrictedAge}
+                        onChange={(e) => setRestrictedAge(e.target.value)}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="all">Open (All Ages)</option>
+                        <option value="juniors">Juniors (Under 18)</option>
+                        <option value="adults">Adults (18-49)</option>
+                        <option value="seniors">Seniors (50+)</option>
+                      </select>
+                    </Field>
+
+                    <Field label="Allowed Gender">
+                      <select
+                        value={restrictedGender}
+                        onChange={(e) => setRestrictedGender(e.target.value)}
+                        className="w-full h-11 rounded-lg border border-brand-gray px-3 focus:border-brand-secondary focus:ring-brand-secondary"
+                      >
+                        <option value="all">Open (All Genders)</option>
+                        <option value="men">Men Only</option>
+                        <option value="women">Women Only</option>
+                      </select>
+                    </Field>
+                  </>
+                )}
 
                 <Field label="Game format">
                   <select
@@ -2750,9 +2854,15 @@ const PickleballTournamentManager = () => {
             <Button
               className="bg-brand-primary text-brand-white hover:bg-brand-primary/90 w-full"
               onClick={generateNextRound}
-              disabled={gameFormat === 'teamed_doubles' ? teams.length < 2 : presentPlayers.length < 4}
+              disabled={
+                tournamentType === 'bracket'
+                  ? (gameFormat === 'teamed_doubles' ? teams.length < 2 : presentPlayers.length < 2)
+                  : (gameFormat === 'teamed_doubles' ? teams.length < 2 : presentPlayers.length < 4)
+              }
             >
-              {currentRound === 0 ? 'Start Tournament (Generate Round 1)' : 'Generate Next Round'}
+              {tournamentType === 'bracket'
+                ? (bracket ? 'View Elimination Bracket' : 'Generate Elimination Bracket')
+                : (currentRound === 0 ? 'Start Tournament (Generate Round 1)' : 'Generate Next Round')}
             </Button>
             {rounds.length > 0 && (
               <Button
@@ -2863,6 +2973,13 @@ const PickleballTournamentManager = () => {
 
         {tab === 'schedule' && (
           <div className="space-y-3">
+            {tournamentType === 'bracket' && (
+              <BracketView
+                bracket={bracket}
+                onMatchScore={handleBracketMatchScore}
+              />
+            )}
+
             {/* ── Court Flow (Round Robin / KoC only) ── */}
             {(tournamentType === 'round_robin' || tournamentType === 'king_of_court') && (
               <div className="space-y-2">

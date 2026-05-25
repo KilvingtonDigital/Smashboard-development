@@ -9,14 +9,18 @@ exports.createTournament = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { tournament_name, tournament_type, num_courts, tournament_data } = req.body;
+    const { tournament_name, tournament_type, num_courts, tournament_data, restricted_skill, restricted_age, restricted_gender, bracket_format } = req.body;
 
     const tournament = await Tournament.create({
       user_id: req.user.id,
       tournament_name,
       tournament_type,
       num_courts,
-      tournament_data
+      tournament_data,
+      restricted_skill,
+      restricted_age,
+      restricted_gender,
+      bracket_format
     });
 
     res.status(201).json({
@@ -59,12 +63,12 @@ exports.getTournament = async (req, res) => {
 // Update tournament
 exports.updateTournament = async (req, res) => {
   try {
-    const { tournament_name, tournament_type, num_courts, tournament_data } = req.body;
+    const { tournament_name, tournament_type, num_courts, tournament_data, restricted_skill, restricted_age, restricted_gender, bracket_format } = req.body;
 
     const tournament = await Tournament.update(
       req.params.id,
       req.user.id,
-      { tournament_name, tournament_type, num_courts, tournament_data }
+      { tournament_name, tournament_type, num_courts, tournament_data, restricted_skill, restricted_age, restricted_gender, bracket_format }
     );
 
     if (!tournament) {

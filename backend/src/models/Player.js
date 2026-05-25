@@ -2,10 +2,10 @@ const pool = require('../config/database');
 
 class Player {
   // Create a new player
-  static async create({ user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed }) {
+  static async create({ user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, age_category }) {
     const result = await pool.query(
-      `INSERT INTO players (user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, waiver_timestamp)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO players (user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, waiver_timestamp, age_category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $8 = TRUE THEN NOW() ELSE NULL END, $9)
        ON CONFLICT (user_id, LOWER(player_name)) 
        DO UPDATE SET 
          dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 
@@ -14,9 +14,10 @@ class Player {
          phone = COALESCE(EXCLUDED.phone, players.phone),
          dupr_id = COALESCE(EXCLUDED.dupr_id, players.dupr_id),
          waiver_signed = COALESCE(EXCLUDED.waiver_signed, players.waiver_signed),
-         waiver_timestamp = COALESCE(EXCLUDED.waiver_timestamp, players.waiver_timestamp)
+         waiver_timestamp = COALESCE(EXCLUDED.waiver_timestamp, players.waiver_timestamp),
+         age_category = COALESCE(EXCLUDED.age_category, players.age_category)
        RETURNING *`,
-      [user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed]
+      [user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, age_category || 'adult']
     );
     return result.rows[0];
   }
@@ -41,16 +42,21 @@ class Player {
 
   // Update player
   static async update(id, user_id, updates) {
-    const { player_name, dupr_rating, gender } = updates;
+    const { player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, age_category } = updates;
 
     const result = await pool.query(
       `UPDATE players
        SET player_name = COALESCE($1, player_name),
            dupr_rating = COALESCE($2, dupr_rating),
-           gender = COALESCE($3, gender)
-       WHERE id = $4 AND user_id = $5
+           gender = COALESCE($3, gender),
+           email = COALESCE($4, email),
+           phone = COALESCE($5, phone),
+           dupr_id = COALESCE($6, dupr_id),
+           waiver_signed = COALESCE($7, waiver_signed),
+           age_category = COALESCE($8, age_category)
+       WHERE id = $9 AND user_id = $10
        RETURNING *`,
-      [player_name, dupr_rating, gender, id, user_id]
+      [player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, age_category, id, user_id]
     );
     return result.rows[0];
   }
@@ -73,14 +79,20 @@ class Player {
       const createdPlayers = [];
       for (const player of players) {
         const result = await client.query(
-          `INSERT INTO players (user_id, player_name, dupr_rating, gender)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO players (user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, waiver_timestamp, age_category)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $8 = TRUE THEN NOW() ELSE NULL END, $9)
            ON CONFLICT (user_id, LOWER(player_name)) 
            DO UPDATE SET 
              dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 
-             gender = COALESCE(EXCLUDED.gender, players.gender)
+             gender = COALESCE(EXCLUDED.gender, players.gender),
+             email = COALESCE(EXCLUDED.email, players.email),
+             phone = COALESCE(EXCLUDED.phone, players.phone),
+             dupr_id = COALESCE(EXCLUDED.dupr_id, players.dupr_id),
+             waiver_signed = COALESCE(EXCLUDED.waiver_signed, players.waiver_signed),
+             waiver_timestamp = COALESCE(EXCLUDED.waiver_timestamp, players.waiver_timestamp),
+             age_category = COALESCE(EXCLUDED.age_category, players.age_category)
            RETURNING *`,
-          [user_id, player.player_name, player.dupr_rating, player.gender]
+          [user_id, player.player_name, player.dupr_rating, player.gender, player.email, player.phone, player.dupr_id, player.waiver_signed, player.age_category || 'adult']
         );
         createdPlayers.push(result.rows[0]);
       }
