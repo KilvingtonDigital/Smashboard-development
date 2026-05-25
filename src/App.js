@@ -9,6 +9,8 @@ import TermsOfService from './pages/TermsOfService';
 
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
+import SpectatorBracket from './pages/SpectatorBracket';
+
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
 
@@ -29,6 +31,14 @@ function AppContent() {
     const slug = path.split('/join/')[1];
     if (slug) {
       return <PublicRegistration slug={slug} />;
+    }
+  }
+
+  // Check if we are on the spectator bracket route
+  if (path.startsWith('/spectate/')) {
+    const slug = path.split('/spectate/')[1];
+    if (slug) {
+      return <SpectatorBracket slug={slug} />;
     }
   }
 

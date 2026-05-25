@@ -2535,6 +2535,33 @@ const PickleballTournamentManager = () => {
                 </div>
               </Card>
             )}
+
+            {user?.registrationSlug && (
+              <Card className="border-brand-secondary/40 bg-brand-secondary/5 mt-3">
+                <h3 className="text-sm font-semibold text-brand-primary mb-2">Live Spectator Bracket Link</h3>
+                <p className="text-xs text-brand-primary/70 mb-3 block">
+                  Share this link with players and spectators so they can view live standings and brackets.
+                </p>
+                <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-brand-gray/50">
+                  <input
+                    type="text"
+                    readOnly
+                    className="flex-1 bg-transparent border-none text-sm text-brand-primary outline-none px-2"
+                    value={`https://dinksync.app/spectate/${user.registrationSlug}`}
+                 />
+                 <Button
+                   className="bg-brand-secondary text-brand-primary h-8 px-3 text-xs"
+                   onClick={(e) => {
+                     navigator.clipboard.writeText(`https://dinksync.app/spectate/${user.registrationSlug}`);
+                     e.target.innerText = 'Copied!';
+                     setTimeout(() => e.target.innerText = 'Copy', 2000);
+                   }}
+                 >
+                   Copy
+                 </Button>
+                </div>
+              </Card>
+            )}
             </div>
 
             <Card className="md:col-span-2">

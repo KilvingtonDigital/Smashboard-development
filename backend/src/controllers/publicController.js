@@ -147,3 +147,39 @@ exports.registerPlayer = async (req, res) => {
     res.status(500).json({ error: 'Failed to complete registration' });
   }
 };
+
+// Get active bracket for spectating
+exports.getActiveBracket = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const user = await User.findByRegistrationSlug(slug);
+    if (!user) {
+      return res.status(404).json({ error: 'Invalid spectator link' });
+    }
+
+    // Check for an active tournament
+    const activeTournamentResult = await pool.query(
+      'SELECT tournament_name, tournament_type, tournament_data, restricted_skill, restricted_age, restricted_gender, bracket_format FROM tournaments WHERE user_id = $1 AND is_active_session = TRUE LIMIT 1',
+      [user.id]
+    );
+
+    const activeTournament = activeTournamentResult.rows[0] || null;
+
+    res.json({
+      success: true,
+      orgName: user.organization_name || `${user.first_name || 'The Organizer'}'s`,
+      activeTournament: activeTournament ? {
+        tournament_name: activeTournament.tournament_name,
+        tournament_type: activeTournament.tournament_type,
+        restricted_skill: activeTournament.restricted_skill || 'all',
+        restricted_age: activeTournament.restricted_age || 'all',
+        restricted_gender: activeTournament.restricted_gender || 'all',
+        bracket_format: activeTournament.bracket_format || 'single_elim',
+        bracket: activeTournament.tournament_data ? activeTournament.tournament_data.bracket : null
+      } : null
+    });
+  } catch (error) {
+    console.error('Spectator bracket fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch active bracket' });
+  }
+};

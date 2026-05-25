@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function BracketView({ bracket, onMatchScore }) {
+export default function BracketView({ bracket, onMatchScore, readOnly = false }) {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
@@ -20,6 +20,24 @@ export default function BracketView({ bracket, onMatchScore }) {
 
   const { winnersMatches = [], consolationMatches = [], grandFinalsMatches = [], type, numRounds } = bracket;
 
+  // 📊 TELEMETRY CALCULATIONS
+  const completedWinners = winnersMatches.filter(m => m.status === 'completed');
+  const completedConsolation = consolationMatches.filter(m => m.status === 'completed');
+  const completedGF = grandFinalsMatches.filter(m => m.status === 'completed');
+  const allCompleted = [...completedWinners, ...completedConsolation, ...completedGF];
+  
+  const totalCompleted = allCompleted.length;
+  
+  const remainingWinners = winnersMatches.filter(m => m.status === 'scheduled').length;
+  const remainingConsolation = consolationMatches.filter(m => m.status === 'scheduled').length;
+  const remainingGF = grandFinalsMatches.filter(m => m.status === 'scheduled').length;
+  const totalRemaining = remainingWinners + remainingConsolation + remainingGF;
+  
+  const courtsAvailable = bracket.courts || 4;
+  const avgMatchDuration = 15; // 15 mins average
+  const estRoundsLeft = Math.ceil(totalRemaining / courtsAvailable);
+  const estMinutesLeft = estRoundsLeft * avgMatchDuration;
+
   // Group winners matches by round
   const winnersByRound = {};
   for (let r = 1; r <= numRounds; r++) {
@@ -36,6 +54,7 @@ export default function BracketView({ bracket, onMatchScore }) {
   }
 
   const openScoreModal = (match) => {
+    if (readOnly) return; // Disabled in spectator read-only mode
     if (match.status === 'bye' || match.status === 'skipped') return;
     setSelectedMatch(match);
     setScore1(match.score1 || '');
@@ -66,7 +85,6 @@ export default function BracketView({ bracket, onMatchScore }) {
   const renderMatchCard = (match) => {
     const isCompleted = match.status === 'completed';
     const isBye = match.status === 'bye';
-    const hasTeams = match.team1 || match.team2;
 
     const t1Name = match.team1 ? match.team1.name : (isBye ? 'BYE' : 'TBD');
     const t2Name = match.team2 ? match.team2.name : (isBye ? 'BYE' : 'TBD');
@@ -82,7 +100,8 @@ export default function BracketView({ bracket, onMatchScore }) {
         key={match.id}
         onClick={() => openScoreModal(match)}
         className={`w-52 bg-white rounded-2xl p-3 border shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all select-none
-          ${isBye ? 'border-brand-secondary/30 bg-brand-secondary/5 opacity-80 cursor-default' : 'border-brand-gray hover:border-brand-secondary hover:shadow-[0_8px_30px_rgba(214,240,96,0.15)] cursor-pointer hover:-translate-y-0.5'}
+          ${isBye ? 'border-brand-secondary/30 bg-brand-secondary/5 opacity-80 cursor-default' : ''}
+          ${!isBye && !readOnly ? 'border-brand-gray hover:border-brand-secondary hover:shadow-[0_8px_30px_rgba(214,240,96,0.15)] cursor-pointer hover:-translate-y-0.5' : 'border-brand-gray/80'}
           ${isCompleted ? 'bg-brand-light/50' : ''}`}
       >
         <div className="flex justify-between items-center text-[9px] font-bold text-brand-primary/40 uppercase tracking-widest mb-2">
@@ -124,6 +143,33 @@ export default function BracketView({ bracket, onMatchScore }) {
 
   return (
     <div className="space-y-6">
+      
+      {/* 📊 Officiating Telemetry Panel (Organizers Only) */}
+      {!readOnly && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-3xl border border-brand-gray/80 shadow-[0_4px_20px_rgb(0,0,0,0.01)] mb-6 select-none font-sans">
+          <div className="text-center p-2 sm:border-r border-brand-gray/60 last:border-none">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5">Completed Matches</span>
+            <span className="text-xl font-black text-brand-primary">{totalCompleted}</span>
+          </div>
+          <div className="text-center p-2 sm:border-r border-brand-gray/60 last:border-none">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5">Remaining Matches</span>
+            <span className="text-xl font-black text-brand-primary">{totalRemaining}</span>
+          </div>
+          <div className="text-center p-2 sm:border-r border-brand-gray/60 last:border-none">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5">Est. Time Remaining</span>
+            <span className="text-xl font-black text-brand-primary">
+              {estMinutesLeft > 0 ? `${Math.floor(estMinutesLeft / 60)}h ${estMinutesLeft % 60}m` : 'Completed 🏆'}
+            </span>
+          </div>
+          <div className="text-center p-2 last:border-none">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5">Parallel Efficiency</span>
+            <span className="text-xl font-black text-brand-primary">
+              {totalRemaining > 0 ? `${Math.min(100, Math.round((courtsAvailable / Math.max(1, totalRemaining)) * 100))}%` : '100%'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Tab Navigation for Double Elimination */}
       {type === 'double_elim' && (
         <div className="flex justify-center gap-2">
@@ -223,7 +269,7 @@ export default function BracketView({ bracket, onMatchScore }) {
       </div>
 
       {/* Self-contained Click-to-Score modal */}
-      {selectedMatch && (
+      {selectedMatch && !readOnly && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-brand-primary/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-brand-gray shadow-soft my-auto">
             <div className="flex justify-between items-center mb-4">
@@ -268,6 +314,41 @@ export default function BracketView({ bracket, onMatchScore }) {
                 </div>
               </div>
 
+              {/* ⚠️ Forfeit & Walkover Panel */}
+              <div className="bg-red-50/50 border border-red-200/50 rounded-2xl p-3.5 space-y-2 mt-4 select-none">
+                <div className="text-[10px] font-black text-red-800 uppercase tracking-widest">
+                  ⚠️ Officiating Walkover / Forfeit
+                </div>
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team1?.name}? ${selectedMatch.team2?.name} will advance.`);
+                      if (confirmed) {
+                        onMatchScore(selectedMatch.id, 2, { score1: 0, score2: 1 });
+                        setSelectedMatch(null);
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                  >
+                    {selectedMatch.team1?.name?.split(' / ')[0]} Forfeit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team2?.name}? ${selectedMatch.team1?.name} will advance.`);
+                      if (confirmed) {
+                        onMatchScore(selectedMatch.id, 1, { score1: 1, score2: 0 });
+                        setSelectedMatch(null);
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                  >
+                    {selectedMatch.team2?.name?.split(' / ')[0]} Forfeit
+                  </button>
+                </div>
+              </div>
+
               <div className="pt-4 flex gap-3">
                 <button
                   type="button"
@@ -280,7 +361,7 @@ export default function BracketView({ bracket, onMatchScore }) {
                   type="submit"
                   className="flex-1 h-11 bg-brand-secondary text-brand-primary font-bold text-sm rounded-xl hover:bg-[#d6f060] transition-all"
                 >
-                  Save &amp; Advance Winner
+                  Save &amp; Advance
                 </button>
               </div>
             </form>
