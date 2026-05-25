@@ -364,6 +364,8 @@ const TournamentsDashboard = ({ onActivateTournament }) => {
             </form>
           </div>
         </div>
+      )}
+
       {/* CHECK-IN QR & LOBBY TV MODAL */}
       {showQRModal && qrModalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
