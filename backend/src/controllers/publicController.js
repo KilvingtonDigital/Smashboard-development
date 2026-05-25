@@ -1,10 +1,11 @@
 const User = require('../models/User');
 const Player = require('../models/Player');
+const pool = require('../config/database');
 
-// Validate slug wrapper
+// Validate slug wrapper (supports optional tournamentId for customized event headers)
 exports.validateSlug = async (req, res) => {
   try {
-    const { slug } = req.params;
+    const { slug, tournamentId } = req.params;
     const user = await User.findByRegistrationSlug(slug);
     
     if (!user) {
@@ -12,10 +13,24 @@ exports.validateSlug = async (req, res) => {
     }
 
     const orgName = user.organization_name || `${user.first_name || 'The Organizer'}'s`;
+    let tournamentName = '';
+
+    if (tournamentId) {
+      const tResult = await pool.query(
+        'SELECT tournament_name FROM tournaments WHERE id = $1 AND user_id = $2',
+        [tournamentId, user.id]
+      );
+      if (tResult.rows.length > 0) {
+        tournamentName = tResult.rows[0].tournament_name;
+      } else {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+    }
     
     res.json({
       success: true,
-      orgName
+      orgName,
+      tournamentName
     });
   } catch (error) {
     console.error('Slug validation error:', error);
@@ -23,10 +38,10 @@ exports.validateSlug = async (req, res) => {
   }
 };
 
-// Register via public link
+// Register via public link (supports optional tournamentId for junction table linking)
 exports.registerPlayer = async (req, res) => {
   try {
-    const { slug } = req.params;
+    const { slug, tournamentId } = req.params;
     const { firstName, lastName, rating, gender, email, phone, duprId, waiverSigned } = req.body;
 
     const user = await User.findByRegistrationSlug(slug);
@@ -42,13 +57,9 @@ exports.registerPlayer = async (req, res) => {
       return res.status(400).json({ error: 'You must agree to the Terms of Service and Liability Waiver to register.' });
     }
 
-    if (!waiverSigned) {
-      return res.status(400).json({ error: 'You must agree to the Terms of Service and Liability Waiver to register.' });
-    }
-
     const fullName = lastName ? `${firstName} ${lastName}` : firstName;
     
-    // Add to players table via Player model
+    // Add or update in players table via Player model
     const newPlayer = await Player.create({
       user_id: user.id,
       player_name: fullName,
@@ -59,6 +70,16 @@ exports.registerPlayer = async (req, res) => {
       dupr_id: duprId,
       waiver_signed: waiverSigned
     });
+
+    // If registering for a specific tournament, link them in the junction table
+    if (tournamentId) {
+      await pool.query(
+        `INSERT INTO tournament_registrations (tournament_id, player_id)
+         VALUES ($1, $2)
+         ON CONFLICT (tournament_id, player_id) DO NOTHING`,
+        [tournamentId, newPlayer.id]
+      );
+    }
 
     res.status(201).json({
       success: true,

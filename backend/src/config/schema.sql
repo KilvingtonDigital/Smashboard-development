@@ -79,10 +79,16 @@ ALTER TABLE players ADD COLUMN IF NOT EXISTS dupr_id VARCHAR(100);
 ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_signed BOOLEAN DEFAULT FALSE;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_timestamp TIMESTAMP;
 
--- MIGRATION: Add Public Registration PII and Legal fields to players
-ALTER TABLE players ADD COLUMN IF NOT EXISTS email VARCHAR(255);
-ALTER TABLE players ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
-ALTER TABLE players ADD COLUMN IF NOT EXISTS dupr_id VARCHAR(100);
-ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_signed BOOLEAN DEFAULT FALSE;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS waiver_timestamp TIMESTAMP;
+-- MIGRATION: Add event_date to tournaments
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS event_date TIMESTAMP;
+
+-- MIGRATION: Create junction table for tournament registrations
+CREATE TABLE IF NOT EXISTS tournament_registrations (
+  id SERIAL PRIMARY KEY,
+  tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+  player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+  registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(tournament_id, player_id)
+);
+
 

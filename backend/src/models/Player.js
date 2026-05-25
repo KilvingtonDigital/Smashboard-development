@@ -5,7 +5,7 @@ class Player {
   static async create({ user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed }) {
     const result = await pool.query(
       `INSERT INTO players (user_id, player_name, dupr_rating, gender, email, phone, dupr_id, waiver_signed, waiver_timestamp)
-       VALUES ($1, $2, $3, $4)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
        ON CONFLICT (user_id, LOWER(player_name)) 
        DO UPDATE SET 
          dupr_rating = COALESCE(EXCLUDED.dupr_rating, players.dupr_rating), 

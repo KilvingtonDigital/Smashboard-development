@@ -4,8 +4,10 @@ const publicController = require('../controllers/publicController');
 
 // Validate public registration slug
 router.get('/join/:slug', publicController.validateSlug);
+router.get('/join/:slug/:tournamentId', publicController.validateSlug);
 
 // Submit registration payload
 router.post('/join/:slug', publicController.registerPlayer);
+router.post('/join/:slug/:tournamentId', publicController.registerPlayer);
 
 module.exports = router;

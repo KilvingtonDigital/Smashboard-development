@@ -7,7 +7,7 @@ const pool = require('../config/database');
 exports.getSession = async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT tournament_data, tournament_name, tournament_type, num_courts, updated_at
+            `SELECT id, tournament_data, tournament_name, tournament_type, num_courts, updated_at
        FROM tournaments
        WHERE user_id = $1 AND is_active_session = TRUE
        LIMIT 1`,
@@ -22,6 +22,7 @@ exports.getSession = async (req, res) => {
         res.json({
             session: {
                 ...row.tournament_data,
+                id: row.id,
                 tournamentName: row.tournament_name,
                 tournamentType: row.tournament_type,
                 numCourts: row.num_courts,

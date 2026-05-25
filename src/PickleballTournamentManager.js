@@ -381,6 +381,7 @@ const PickleballTournamentManager = () => {
   const isClearingSession = useRef(false); // prevents autosave race during End & Clear
   const sessionRestoredRef = useRef(false); // prevents autosave from firing before restore
   const [players, setPlayers] = useState([]);
+  const [tournamentId, setTournamentId] = useState(null);
   const [form, setForm] = useState({ name: '', rating: '', gender: 'male' });
   const [bulkText, setBulkText] = useState('');
   const [addNote, setAddNote] = useState(null);
@@ -429,6 +430,7 @@ const PickleballTournamentManager = () => {
       // 1. Try backend first (cloud session — survives refresh & works across devices)
       const cloudSnap = await loadSession();
       if (cloudSnap && (cloudSnap.players?.length || cloudSnap.rounds?.length)) {
+        if (cloudSnap.id) setTournamentId(cloudSnap.id);
         // Always restore players, config, and tournament name if present
         if (cloudSnap.players?.length) setPlayers(cloudSnap.players);
         if (cloudSnap.tournamentName) setTournamentName(cloudSnap.tournamentName);
@@ -460,15 +462,16 @@ const PickleballTournamentManager = () => {
         } else {
           console.log('[Session] Restored players/config from cloud (no rounds yet)');
         }
-        return; // Cloud wins — skip localStorage
+        return cloudSnap.id || null; // Cloud wins — skip localStorage
       }
 
       // 2. Fallback: localStorage (existing behaviour)
       const raw = localStorage.getItem('pb_session');
-      if (!raw) return;
+      if (!raw) return null;
       try {
         const snap = JSON.parse(raw);
         if (snap.players?.length || snap.rounds?.length) {
+          if (snap.id) setTournamentId(snap.id);
           // Always restore players and config
           if (snap.players?.length) setPlayers(snap.players);
           if (snap.tournamentName) setTournamentName(snap.tournamentName);
@@ -496,38 +499,64 @@ const PickleballTournamentManager = () => {
           } else {
             console.log('[Session] Restored players/config from localStorage (no rounds yet)');
           }
+          return snap.id || null;
         }
       } catch (e) {
         console.warn('[Session] Failed to restore session from localStorage:', e);
       }
+      return null;
     };
     // Always lift the autosave guard once restore completes (or fails)
-    restoreSession().finally(() => { 
+    restoreSession().then((restoredId) => { 
         sessionRestoredRef.current = true; 
         setPlayers(currentP => {
-            fetchRosterFromDB(currentP.length);
+            fetchRosterFromDB(currentP.length, restoredId);
             return currentP;
         });
     });
   }, [user]); // Add user to dependency so it re-runs if user changes
 
   // Fetch roster from DB — manually called after session restore completes
-  const fetchRosterFromDB = async (currentPlayersLength) => {
+  const fetchRosterFromDB = async (currentPlayersLength, activeTId) => {
     if (user) {
       try {
-        const { success, data } = await api.players.getAll();
-        if (success && data.players && data.players.length > 0) {
-          const dbPlayers = data.players.map(p => ({
+        const targetId = activeTId || tournamentId;
+        let responseData = null;
+        let isTournamentSpecific = false;
+
+        if (targetId) {
+          // Fetch players registered specifically for this tournament
+          const res = await api.fetchAPI(`/api/tournaments/${targetId}/players`);
+          if (res.success && res.data.players && res.data.players.length > 0) {
+            responseData = res.data;
+            isTournamentSpecific = true;
+          }
+        }
+
+        // Fallback to global directory if no registrations are found
+        if (!responseData) {
+          const res = await api.players.getAll();
+          if (res.success) {
+            responseData = res.data;
+          }
+        }
+
+        if (responseData && responseData.players && responseData.players.length > 0) {
+          const dbPlayers = responseData.players.map(p => ({
             id: p.id,
             name: p.player_name,
             rating: Number(p.dupr_rating) || 2.5,
             gender: p.gender || 'male',
-            present: false // User requested default to false so manager must check them in
+            present: false // default to absent so coordinator checks them in manually
           }));
           
           if (currentPlayersLength === 0 && !sessionStorage.getItem('rosterPrompted')) {
               sessionStorage.setItem('rosterPrompted', 'true');
-              const doLoad = window.confirm('You have ' + data.players.length + ' players saved in your database.\n\nWould you like to auto-populate them into your Roster?\n(You will need to manually mark them as Present on the Roster tab)');
+              const promptMsg = isTournamentSpecific
+                ? `You have ${responseData.players.length} players registered specifically for this tournament.\n\nWould you like to auto-populate them into your Roster?\n(You will need to manually mark them as Present on the Roster tab)`
+                : `You have ${responseData.players.length} players saved in your database.\n\nWould you like to auto-populate them into your Roster?\n(You will need to manually mark them as Present on the Roster tab)`;
+              
+              const doLoad = window.confirm(promptMsg);
               if (doLoad) {
                   setPlayers(dbPlayers);
               }
@@ -587,6 +616,7 @@ const PickleballTournamentManager = () => {
     if (isClearingSession.current) return;
 
     const snapshot = {
+      id: tournamentId,
       players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates,
       tournamentName,
       meta: { courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, ts: Date.now() },
@@ -600,7 +630,7 @@ const PickleballTournamentManager = () => {
       tournamentType: tournamentType || 'round_robin',
       numCourts: courts
     });
-  }, [players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName]); // eslint-disable-line
+  }, [tournamentId, players, rounds, playerStats, kotStats, teamStats, currentRound, teams, courtStates, courts, sessionMinutes, minutesPerRound, tournamentType, gameFormat, matchFormat, separateBySkill, locked, tournamentName]); // eslint-disable-line
 
   useEffect(() => {
     const handler = (e) => {

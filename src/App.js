@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import PickleballTournamentManager from './PickleballTournamentManager';
 import AuthPage from './components/AuthPage';
@@ -6,13 +6,47 @@ import MigrationPrompt from './components/MigrationPrompt';
 import PublicRegistration from './components/PublicRegistration';
 import LegalWaiver from './pages/LegalWaiver';
 import TermsOfService from './pages/TermsOfService';
+import TournamentsDashboard from './components/TournamentsDashboard';
 
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
+
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
+  const [activeSession, setActiveSession] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
-  // Check if we are on the reset password route
+  const checkActiveSession = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setSessionLoading(false);
+        return;
+      }
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/session`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setActiveSession(data.session);
+      }
+    } catch (err) {
+      console.error('Error fetching active session:', err);
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkActiveSession();
+    } else {
+      setActiveSession(null);
+      setSessionLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  // Check if we are on specific paths
   const path = window.location.pathname;
   if (path.startsWith('/reset-password/')) {
     const token = path.split('/reset-password/')[1];
@@ -24,11 +58,13 @@ function AppContent() {
   if (path === '/waiver') { return <LegalWaiver />; }
   if (path === '/terms') { return <TermsOfService />; }
 
-  // Check if we are on the public registration route
+  // Check if we are on the public registration route (supports optional tournamentId)
   if (path.startsWith('/join/')) {
-    const slug = path.split('/join/')[1];
+    const parts = path.split('/join/')[1].split('/');
+    const slug = parts[0];
+    const tournamentId = parts[1]; // optional
     if (slug) {
-      return <PublicRegistration slug={slug} />;
+      return <PublicRegistration slug={slug} tournamentId={tournamentId} />;
     }
   }
 
@@ -50,7 +86,7 @@ function AppContent() {
     );
   }
 
-  if (loading) {
+  if (loading || (isAuthenticated && sessionLoading)) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-lime text-xl">Loading...</div>
@@ -62,19 +98,43 @@ function AppContent() {
     return <AuthPage />;
   }
 
+  const handleReturnToDashboard = async () => {
+    if (!window.confirm("Return to Dashboard? Your active tournament progress is securely saved.")) return;
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/session`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setActiveSession(null);
+    } catch (err) {
+      console.error('Error clearing session:', err);
+    }
+  };
+
   return (
     <div>
       {/* Migration prompt for localStorage data */}
       <MigrationPrompt />
 
-      {/* User info bar */}
-      <div className="bg-dark-gray border-b border-gray px-4 py-2 flex justify-between items-center">
-        <div className="text-white text-sm">
-          Welcome, <span className="text-lime font-semibold">
-            {user?.firstName && user?.lastName
-              ? `${user.firstName} ${user.lastName}`
-              : user?.username}
-          </span>
+      {/* Organizer User Navigation Bar */}
+      <div className="bg-dark-gray border-b border-gray px-4 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div className="text-white text-sm">
+            Welcome, <span className="text-lime font-semibold">
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user?.username}
+            </span>
+          </div>
+          {activeSession && (
+            <button
+              onClick={handleReturnToDashboard}
+              className="text-xs font-bold text-gray-400 hover:text-lime border border-[#333] hover:border-lime/30 bg-[#161616] px-3 py-1 rounded-lg transition-all"
+            >
+              ← Return to Tournaments Dashboard
+            </button>
+          )}
         </div>
         <button
           onClick={logout}
@@ -84,9 +144,13 @@ function AppContent() {
         </button>
       </div>
 
-      {/* Main app with Error Safeguard */}
+      {/* Main App Content Router */}
       <ErrorBoundary>
-        <PickleballTournamentManager />
+        {activeSession ? (
+          <PickleballTournamentManager />
+        ) : (
+          <TournamentsDashboard onActivateTournament={checkActiveSession} />
+        )}
       </ErrorBoundary>
     </div>
   );
