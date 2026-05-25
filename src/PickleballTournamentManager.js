@@ -3004,6 +3004,8 @@ const PickleballTournamentManager = () => {
               <BracketView
                 bracket={bracket}
                 onMatchScore={handleBracketMatchScore}
+                onUpdateBracket={setBracket}
+                players={players}
               />
             )}
 

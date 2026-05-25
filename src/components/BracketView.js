@@ -1,10 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function BracketView({ bracket, onMatchScore, readOnly = false }) {
+export default function BracketView({ bracket, onMatchScore, readOnly = false, onUpdateBracket = null, players = [] }) {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [activeTab, setActiveTab] = useState('winners'); // 'winners' | 'consolation' | 'grand_finals'
+  
+  // Custom toast notification system
+  const [toast, setToast] = useState(null);
+  const triggerToast = (message) => {
+    setToast(message);
+    setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
+
+  // Substitution state inside score modal
+  const [isSubbing, setIsSubbing] = useState(false);
+  const [subSide, setSubSide] = useState(1); // 1 = Team 1, 2 = Team 2
+  const [subPlayerIdx, setSubPlayerIdx] = useState(0); // Index of partner to swap (0 or 1)
+  const [selectedSubPlayerId, setSelectedSubPlayerId] = useState('');
+
+  // 1-second ticker interval for real-time court clock rendering
+  const [ticker, setTicker] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTicker(t => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (!bracket || !bracket.winnersMatches || bracket.winnersMatches.length === 0) {
     return (
@@ -19,6 +43,26 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
   }
 
   const { winnersMatches = [], consolationMatches = [], grandFinalsMatches = [], type, numRounds } = bracket;
+  const allMatches = [...winnersMatches, ...consolationMatches, ...grandFinalsMatches];
+
+  // 🏟️ ACTIVE COURT STATES
+  const numCourts = bracket.courts || 4;
+  const courtAssignments = bracket.courtAssignments || Array.from({ length: numCourts }, (_, i) => ({
+    courtNumber: i + 1,
+    matchId: null,
+    status: 'available', // 'available' | 'warming_up' | 'playing'
+    timerStart: null,
+    timerMode: null
+  }));
+
+  const updateCourts = (newCourts) => {
+    if (onUpdateBracket) {
+      onUpdateBracket({
+        ...bracket,
+        courtAssignments: newCourts
+      });
+    }
+  };
 
   // 📊 TELEMETRY CALCULATIONS
   const completedWinners = winnersMatches.filter(m => m.status === 'completed');
@@ -33,18 +77,42 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
   const remainingGF = grandFinalsMatches.filter(m => m.status === 'scheduled').length;
   const totalRemaining = remainingWinners + remainingConsolation + remainingGF;
   
-  const courtsAvailable = bracket.courts || 4;
+  const courtsAvailable = numCourts;
   const avgMatchDuration = 15; // 15 mins average
   const estRoundsLeft = Math.ceil(totalRemaining / courtsAvailable);
   const estMinutesLeft = estRoundsLeft * avgMatchDuration;
 
-  // Group winners matches by round
+  // 📋 STANDBY MATCH QUEUE CALCULATIONS (Unassigned, fully decided matches, no double-booked players)
+  const activeMatchIds = courtAssignments.filter(c => c.matchId).map(c => c.matchId);
+  const activeCourtPlayers = new Set();
+  activeMatchIds.forEach(mId => {
+    const m = allMatches.find(x => x.id === mId);
+    if (m) {
+      m.team1?.name?.split(' / ').forEach(p => activeCourtPlayers.add(p.trim()));
+      m.team2?.name?.split(' / ').forEach(p => activeCourtPlayers.add(p.trim()));
+    }
+  });
+
+  const standbyMatches = allMatches.filter(match => {
+    if (match.status !== 'scheduled') return false;
+    if (!match.team1 || !match.team2) return false;
+    if (match.team1.name === 'TBD' || match.team2.name === 'TBD') return false;
+    if (match.team1.name === 'BYE' || match.team2.name === 'BYE') return false;
+    if (activeMatchIds.includes(match.id)) return false;
+
+    // Check for double booking
+    const mPlayers = [];
+    match.team1.name?.split(' / ').forEach(p => mPlayers.push(p.trim()));
+    match.team2.name?.split(' / ').forEach(p => mPlayers.push(p.trim()));
+    return !mPlayers.some(p => activeCourtPlayers.has(p));
+  });
+
+  // Group matches by round
   const winnersByRound = {};
   for (let r = 1; r <= numRounds; r++) {
     winnersByRound[r] = winnersMatches.filter(m => m.round === r);
   }
 
-  // Group consolation matches by round
   const consolationByRound = {};
   const totalConsolationRounds = (numRounds - 1) * 2;
   if (type === 'double_elim' && consolationMatches.length > 0) {
@@ -53,12 +121,142 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
     }
   }
 
+  // 🎛️ DRAG-AND-DROP & ASSIGNMENT UTILITIES
+  const handleDragStart = (e, matchId) => {
+    e.dataTransfer.setData('text/plain', matchId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, courtNumber) => {
+    e.preventDefault();
+    const matchId = e.dataTransfer.getData('text/plain');
+    if (matchId) {
+      assignMatchToCourt(matchId, courtNumber);
+    }
+  };
+
+  const assignMatchToCourt = (matchId, courtNumber) => {
+    const updated = [...courtAssignments];
+    const idx = updated.findIndex(c => c.courtNumber === courtNumber);
+    if (idx === -1) return;
+
+    if (updated[idx].matchId) {
+      triggerToast(`Court ${courtNumber} is already occupied.`);
+      return;
+    }
+    if (updated.some(c => c.matchId === matchId)) {
+      triggerToast(`Match ${matchId} is already on another court.`);
+      return;
+    }
+
+    updated[idx] = {
+      courtNumber,
+      matchId,
+      status: 'warming_up',
+      timerStart: Date.now(),
+      timerMode: 'warmup'
+    };
+
+    updateCourts(updated);
+    triggerToast(`Match ${matchId} assigned to Court ${courtNumber}!`);
+  };
+
+  const startMatchPlay = (courtNumber) => {
+    const updated = [...courtAssignments];
+    const idx = updated.findIndex(c => c.courtNumber === courtNumber);
+    if (idx !== -1) {
+      updated[idx] = {
+        ...updated[idx],
+        status: 'playing',
+        timerStart: Date.now(),
+        timerMode: 'match'
+      };
+      updateCourts(updated);
+      triggerToast(`Warmup complete! Match is now active on Court ${courtNumber}.`);
+    }
+  };
+
+  const releaseCourt = (courtNumber) => {
+    const updated = [...courtAssignments];
+    const idx = updated.findIndex(c => c.courtNumber === courtNumber);
+    if (idx !== -1) {
+      const oldMatchId = updated[idx].matchId;
+      updated[idx] = {
+        courtNumber,
+        matchId: null,
+        status: 'available',
+        timerStart: null,
+        timerMode: null
+      };
+      updateCourts(updated);
+      triggerToast(`Match ${oldMatchId} removed from Court ${courtNumber}.`);
+    }
+  };
+
+  const pingPlayersForMatch = (matchId, courtNumber) => {
+    const match = allMatches.find(m => m.id === matchId);
+    if (!match) return;
+
+    const names = `${match.team1?.name} vs ${match.team2?.name}`;
+    const msg = `📢 Call to Court: ${names} please report to Court ${courtNumber} immediately!`;
+
+    fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/notifications/ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId, courtNumber, msg })
+    }).catch(() => {});
+
+    triggerToast(msg);
+  };
+
+  // Substitutions
+  const standbyRoster = (players || []).filter(p => {
+    if (!p.checkedIn) return false;
+    if (activeCourtPlayers.has(p.name)) return false;
+    return true;
+  });
+
+  const confirmPlayerSwap = (e) => {
+    e.preventDefault();
+    if (!selectedMatch || !selectedSubPlayerId) return;
+
+    const targetSubPlayer = players.find(p => p.id === selectedSubPlayerId);
+    if (!targetSubPlayer) return;
+
+    const updatedBracket = JSON.parse(JSON.stringify(bracket));
+    const targetMatch = [...updatedBracket.winnersMatches, ...updatedBracket.consolationMatches, ...updatedBracket.grandFinalsMatches]
+      .find(m => m.id === selectedMatch.id);
+    
+    if (targetMatch) {
+      const team = subSide === 1 ? targetMatch.team1 : targetMatch.team2;
+      if (team) {
+        let names = team.name.split(' / ');
+        const oldName = names[subPlayerIdx] || 'Standby';
+        names[subPlayerIdx] = targetSubPlayer.name;
+        team.name = names.join(' / ');
+        
+        // Save and sync
+        if (onUpdateBracket) {
+          onUpdateBracket(updatedBracket);
+        }
+        triggerToast(`Swapped ${oldName} with ${targetSubPlayer.name} in match ${selectedMatch.id}!`);
+      }
+    }
+
+    setIsSubbing(false);
+    setSelectedMatch(null);
+  };
+
   const openScoreModal = (match) => {
-    if (readOnly) return; // Disabled in spectator read-only mode
+    if (readOnly) return; 
     if (match.status === 'bye' || match.status === 'skipped') return;
     setSelectedMatch(match);
     setScore1(match.score1 || '');
     setScore2(match.score2 || '');
+    setIsSubbing(false);
   };
 
   const handleSaveScore = (e) => {
@@ -77,9 +275,49 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
       return;
     }
 
+    // Auto-clear from court assignments upon score completion
+    const updated = [...courtAssignments];
+    const idx = updated.findIndex(c => c.matchId === selectedMatch.id);
+    if (idx !== -1) {
+      updated[idx] = {
+        courtNumber: updated[idx].courtNumber,
+        matchId: null,
+        status: 'available',
+        timerStart: null,
+        timerMode: null
+      };
+      updateCourts(updated);
+    }
+
     const winnerSide = s1 > s2 ? 1 : 2;
     onMatchScore(selectedMatch.id, winnerSide, { score1: s1, score2: s2 });
     setSelectedMatch(null);
+  };
+
+  const renderCourtTimer = (court) => {
+    if (!court.timerStart) return null;
+    const elapsedSeconds = Math.floor((Date.now() - court.timerStart) / 1000);
+    
+    if (court.timerMode === 'warmup') {
+      const remaining = Math.max(0, 300 - elapsedSeconds); // 5 mins
+      const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+      const s = (remaining % 60).toString().padStart(2, '0');
+      const expired = remaining === 0;
+      return (
+        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${expired ? 'bg-orange-500/20 text-orange-600 animate-pulse' : 'bg-brand-gray text-brand-primary'}`}>
+          ⏱️ Warmup: {m}:{s} {expired && "(Start Play!)"}
+        </span>
+      );
+    } else {
+      const m = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+      const s = (elapsedSeconds % 60).toString().padStart(2, '0');
+      const overtime = elapsedSeconds > 900; // 15 mins
+      return (
+        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${overtime ? 'bg-red-500/20 text-red-600 animate-pulse' : 'bg-green-500/20 text-green-600'}`}>
+          🎾 Play: {m}:{s} {overtime && "(Overtime)"}
+        </span>
+      );
+    }
   };
 
   const renderMatchCard = (match) => {
@@ -95,17 +333,25 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
     const isWinner1 = match.winner === 'team1';
     const isWinner2 = match.winner === 'team2';
 
+    // Check if this match is assigned to a court
+    const assignedCourt = courtAssignments.find(c => c.matchId === match.id);
+
     return (
       <div
         key={match.id}
         onClick={() => openScoreModal(match)}
-        className={`w-52 bg-white rounded-2xl p-3 border shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all select-none
+        className={`w-52 bg-white rounded-2xl p-3 border shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all select-none relative
           ${isBye ? 'border-brand-secondary/30 bg-brand-secondary/5 opacity-80 cursor-default' : ''}
           ${!isBye && !readOnly ? 'border-brand-gray hover:border-brand-secondary hover:shadow-[0_8px_30px_rgba(214,240,96,0.15)] cursor-pointer hover:-translate-y-0.5' : 'border-brand-gray/80'}
           ${isCompleted ? 'bg-brand-light/50' : ''}`}
       >
         <div className="flex justify-between items-center text-[9px] font-bold text-brand-primary/40 uppercase tracking-widest mb-2">
           <span>{match.id}</span>
+          {assignedCourt && (
+            <span className="text-[9px] font-extrabold text-brand-secondary bg-brand-primary px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+              Ct {assignedCourt.courtNumber}
+            </span>
+          )}
           {isCompleted && <span className="text-green-600">✓ Completed</span>}
           {isBye && <span className="text-brand-primary/60">Bye</span>}
         </div>
@@ -142,8 +388,17 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6 print:hidden">
       
+      {/* 🔔 Gorgeous Host Toast Notifications */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-[10000] bg-brand-primary border border-brand-secondary/40 text-white rounded-2xl p-4 shadow-xl max-w-sm flex items-center gap-3 animate-slide-in">
+          <div className="text-xl">🔔</div>
+          <div className="text-xs font-bold leading-normal">{toast}</div>
+        </div>
+      )}
+
       {/* 📊 Officiating Telemetry Panel (Organizers Only) */}
       {!readOnly && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-3xl border border-brand-gray/80 shadow-[0_4px_20px_rgb(0,0,0,0.01)] mb-6 select-none font-sans">
@@ -161,12 +416,154 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
               {estMinutesLeft > 0 ? `${Math.floor(estMinutesLeft / 60)}h ${estMinutesLeft % 60}m` : 'Completed 🏆'}
             </span>
           </div>
-          <div className="text-center p-2 last:border-none">
-            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5">Parallel Efficiency</span>
-            <span className="text-xl font-black text-brand-primary">
-              {totalRemaining > 0 ? `${Math.min(100, Math.round((courtsAvailable / Math.max(1, totalRemaining)) * 100))}%` : '100%'}
+          <div className="text-center p-2 last:border-none flex flex-col items-center justify-center">
+            <span className="text-[9px] font-black text-brand-primary/40 uppercase tracking-widest block mb-0.5 flex-1 mt-1">Offline Sheets</span>
+            <button
+              onClick={() => window.print()}
+              className="mt-0.5 bg-brand-secondary text-brand-primary text-[10px] font-bold px-3 py-1 rounded-lg hover:bg-[#d6f060] transition-all uppercase tracking-wider"
+            >
+              🖨️ Print sheets
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🏟️ INTERACTIVE COURTS DASHBOARD (Organizers Only) */}
+      {!readOnly && (
+        <div className="bg-white p-5 rounded-3xl border border-brand-gray/80 shadow-soft space-y-4 font-sans select-none">
+          <div className="flex items-center justify-between border-b border-brand-gray pb-3">
+            <h3 className="text-sm font-extrabold text-brand-primary uppercase tracking-wider flex items-center gap-2">
+              🏟️ Court Manager & Officiating Planner
+            </h3>
+            <span className="text-[10px] font-bold text-brand-primary/50 uppercase tracking-widest">
+              Drag standby matches onto empty courts to assign
             </span>
           </div>
+
+          {/* Grid of Courts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {courtAssignments.map(court => {
+              const activeMatch = court.matchId ? allMatches.find(m => m.id === court.matchId) : null;
+              const isOccupied = !!court.matchId;
+
+              return (
+                <div
+                  key={court.courtNumber}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, court.courtNumber)}
+                  className={`rounded-2xl border p-4 space-y-3 transition-all flex flex-col justify-between min-h-[175px]
+                    ${isOccupied ? 'border-brand-secondary/35 bg-brand-secondary/[0.02]' : 'border-dashed border-brand-gray/80 bg-brand-light/30 hover:bg-brand-gray/10'}`}
+                >
+                  {/* Court Header */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-brand-primary">Court {court.courtNumber}</span>
+                    <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider
+                      ${court.status === 'playing' ? 'bg-green-500/20 text-green-600' : court.status === 'warming_up' ? 'bg-orange-500/20 text-orange-600 animate-pulse' : 'bg-gray-100 text-gray-500'}`}>
+                      {court.status === 'playing' ? 'playing' : court.status === 'warming_up' ? 'warmup' : 'empty'}
+                    </span>
+                  </div>
+
+                  {/* Assigned Match Details */}
+                  {activeMatch ? (
+                    <div className="space-y-2 flex-1 flex flex-col justify-center">
+                      <div className="text-[10px] font-black text-brand-primary/40 uppercase tracking-widest">{activeMatch.id}</div>
+                      <div className="text-xs font-bold text-brand-primary line-clamp-2">
+                        {activeMatch.team1?.name} <span className="opacity-40 block font-semibold text-[10px] my-0.5 text-center">vs</span> {activeMatch.team2?.name}
+                      </div>
+                      <div className="pt-1">{renderCourtTimer(court)}</div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center text-brand-primary/40 p-2">
+                      <span className="text-2xl mb-1">🎾</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Empty Court</span>
+                      
+                      {/* Touchscreen dropdown assign fallback */}
+                      {standbyMatches.length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) assignMatchToCourt(e.target.value, court.courtNumber);
+                          }}
+                          className="mt-2 text-[9px] font-bold border border-brand-gray/80 rounded bg-white p-1 text-brand-primary max-w-[110px]"
+                        >
+                          <option value="">+ Assign</option>
+                          {standbyMatches.map(m => (
+                            <option key={m.id} value={m.id}>{m.id} ({m.team1?.name?.split(' / ')[0]} v...)</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Court Operations controls */}
+                  {isOccupied && (
+                    <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-brand-gray/60">
+                      {court.status === 'warming_up' ? (
+                        <button
+                          onClick={() => startMatchPlay(court.courtNumber)}
+                          className="py-1 rounded-lg bg-green-500 text-white font-bold text-[9px] hover:bg-green-600 transition-colors uppercase tracking-wider"
+                        >
+                          ▶ Play
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (activeMatch) openScoreModal(activeMatch);
+                          }}
+                          className="py-1 rounded-lg bg-brand-secondary text-brand-primary font-bold text-[9px] hover:bg-[#d6f060] transition-colors uppercase tracking-wider"
+                        >
+                          ✓ Score
+                        </button>
+                      )}
+                      <button
+                        onClick={() => pingPlayersForMatch(court.matchId, court.courtNumber)}
+                        className="py-1 rounded-lg bg-brand-primary text-white font-bold text-[9px] hover:bg-brand-primary/90 transition-colors uppercase tracking-wider"
+                      >
+                        📢 Ping
+                      </button>
+                      <button
+                        onClick={() => releaseCourt(court.courtNumber)}
+                        className="col-span-2 py-0.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-700 font-bold text-[8px] transition-colors uppercase tracking-widest"
+                      >
+                        ✕ Release Court
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 📋 Standby Match Queue */}
+          {standbyMatches.length > 0 ? (
+            <div className="space-y-2.5 pt-3 border-t border-brand-gray/80">
+              <span className="text-[10px] font-black text-brand-primary/50 uppercase tracking-widest block">
+                📋 Standby Match Queue ({standbyMatches.length} Matches Ready)
+              </span>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                {standbyMatches.map(match => (
+                  <div
+                    key={match.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, match.id)}
+                    className="flex-shrink-0 w-48 bg-brand-light/35 border border-brand-gray/60 rounded-xl p-3 shadow-[0_2px_10px_rgb(0,0,0,0.01)] hover:border-brand-secondary cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className="flex justify-between items-center text-[8px] font-black text-brand-primary/40 uppercase mb-1.5">
+                      <span>{match.id}</span>
+                      <span className="text-[7px] bg-brand-secondary/40 text-brand-primary px-1.5 py-0.2 rounded font-extrabold uppercase">Ready</span>
+                    </div>
+                    <div className="text-[11px] font-bold text-brand-primary truncate">{match.team1?.name}</div>
+                    <div className="text-[8px] font-semibold text-brand-primary/40 text-center uppercase tracking-widest my-0.5">vs</div>
+                    <div className="text-[11px] font-bold text-brand-primary truncate">{match.team2?.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-[10px] font-black text-brand-primary/30 uppercase tracking-widest py-3 border-t border-brand-gray/80">
+              📋 Standby Match Queue Empty (All ready matches assigned or on court!)
+            </div>
+          )}
         </div>
       )}
 
@@ -268,106 +665,286 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false })
         )}
       </div>
 
-      {/* Self-contained Click-to-Score modal */}
+      {/* Self-contained Click-to-Score / Substitution modal */}
       {selectedMatch && !readOnly && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-brand-primary/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-brand-primary/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-brand-gray shadow-soft my-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-base font-bold text-brand-primary">Match score entry ({selectedMatch.id})</h3>
+              <h3 className="text-base font-bold text-brand-primary">
+                {isSubbing ? '🔄 Partner Substitution' : `Match score entry (${selectedMatch.id})`}
+              </h3>
               <button onClick={() => setSelectedMatch(null)} className="text-lg text-brand-primary/40 hover:text-brand-primary">✕</button>
             </div>
 
-            <form onSubmit={handleSaveScore} className="space-y-4">
-              <div className="space-y-3">
-                {/* Team 1 Score */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold truncate max-w-[200px] text-brand-primary">
-                    {selectedMatch.team1?.name || 'TBD'}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={score1}
-                    onChange={(e) => setScore1(e.target.value)}
-                    className="w-20 h-10 border border-brand-primary/10 rounded-xl text-center font-bold text-base bg-brand-light focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
-                    placeholder="0"
-                  />
+            {/* Substitution Roster Form */}
+            {isSubbing ? (
+              <form onSubmit={confirmPlayerSwap} className="space-y-4">
+                <div className="space-y-3 bg-brand-light/35 border border-brand-gray/60 p-4 rounded-2xl select-none">
+                  <div>
+                    <label className="text-[10px] font-black text-brand-primary/50 uppercase tracking-widest block mb-1">Select Side</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setSubSide(1); setSubPlayerIdx(0); }}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border
+                          ${subSide === 1 ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-brand-primary border-brand-gray hover:bg-brand-gray/30'}`}
+                      >
+                        {selectedMatch.team1?.name?.split(' / ')[0] || 'Team 1'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSubSide(2); setSubPlayerIdx(0); }}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border
+                          ${subSide === 2 ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-brand-primary border-brand-gray hover:bg-brand-gray/30'}`}
+                      >
+                        {selectedMatch.team2?.name?.split(' / ')[0] || 'Team 2'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Choose Partner to swap if doubles */}
+                  {((subSide === 1 ? selectedMatch.team1 : selectedMatch.team2)?.name?.includes(' / ')) && (
+                    <div className="pt-2">
+                      <label className="text-[10px] font-black text-brand-primary/50 uppercase tracking-widest block mb-1">Select Player to Replace</label>
+                      <div className="flex gap-2">
+                        {((subSide === 1 ? selectedMatch.team1 : selectedMatch.team2)?.name?.split(' / ') || []).map((name, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setSubPlayerIdx(idx)}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                              ${subPlayerIdx === idx ? 'bg-brand-secondary text-brand-primary border-brand-secondary font-bold' : 'bg-white text-brand-primary border-brand-gray hover:bg-brand-gray/30'}`}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <label className="text-[10px] font-black text-brand-primary/50 uppercase tracking-widest block mb-1">Select Replacement Standby</label>
+                    {standbyRoster.length > 0 ? (
+                      <select
+                        required
+                        value={selectedSubPlayerId}
+                        onChange={(e) => setSelectedSubPlayerId(e.target.value)}
+                        className="w-full h-11 border border-brand-primary/10 rounded-xl px-3 font-semibold text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                      >
+                        <option value="">-- Checked-In Standby Players --</option>
+                        {standbyRoster.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} (DUPR {p.rating || 'Unrated'})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="text-center text-[10px] text-red-500 font-bold uppercase tracking-wide py-2 bg-red-50/50 rounded-lg">
+                        ⚠️ No checked-in standby players available!
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="border-t border-brand-gray/60 my-2" />
-
-                {/* Team 2 Score */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold truncate max-w-[200px] text-brand-primary">
-                    {selectedMatch.team2?.name || 'TBD'}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={score2}
-                    onChange={(e) => setScore2(e.target.value)}
-                    className="w-20 h-10 border border-brand-primary/10 rounded-xl text-center font-bold text-base bg-brand-light focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              {/* ⚠️ Forfeit & Walkover Panel */}
-              <div className="bg-red-50/50 border border-red-200/50 rounded-2xl p-3.5 space-y-2 mt-4 select-none">
-                <div className="text-[10px] font-black text-red-800 uppercase tracking-widest">
-                  ⚠️ Officiating Walkover / Forfeit
-                </div>
-                <div className="flex gap-2.5">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team1?.name}? ${selectedMatch.team2?.name} will advance.`);
-                      if (confirmed) {
-                        onMatchScore(selectedMatch.id, 2, { score1: 0, score2: 1 });
-                        setSelectedMatch(null);
-                      }
-                    }}
-                    className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                    onClick={() => setIsSubbing(false)}
+                    className="flex-1 h-11 border border-brand-primary/15 rounded-xl font-bold text-sm text-brand-primary/80 hover:bg-brand-gray/20 transition-all"
                   >
-                    {selectedMatch.team1?.name?.split(' / ')[0]} Forfeit
+                    Cancel
                   </button>
                   <button
-                    type="button"
-                    onClick={() => {
-                      const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team2?.name}? ${selectedMatch.team1?.name} will advance.`);
-                      if (confirmed) {
-                        onMatchScore(selectedMatch.id, 1, { score1: 1, score2: 0 });
-                        setSelectedMatch(null);
-                      }
-                    }}
-                    className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                    type="submit"
+                    disabled={!selectedSubPlayerId}
+                    className="flex-1 h-11 bg-brand-secondary text-brand-primary font-bold text-sm rounded-xl hover:bg-[#d6f060] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {selectedMatch.team2?.name?.split(' / ')[0]} Forfeit
+                    Confirm Swap
                   </button>
                 </div>
-              </div>
+              </form>
+            ) : (
+              <form onSubmit={handleSaveScore} className="space-y-4">
+                <div className="space-y-3">
+                  {/* Team 1 Score */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold truncate max-w-[200px] text-brand-primary">
+                      {selectedMatch.team1?.name || 'TBD'}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={score1}
+                      onChange={(e) => setScore1(e.target.value)}
+                      className="w-20 h-10 border border-brand-primary/10 rounded-xl text-center font-bold text-base bg-brand-light focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                      placeholder="0"
+                    />
+                  </div>
 
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMatch(null)}
-                  className="flex-1 h-11 border border-brand-primary/15 rounded-xl font-bold text-sm text-brand-primary/80 hover:bg-brand-gray/20 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 h-11 bg-brand-secondary text-brand-primary font-bold text-sm rounded-xl hover:bg-[#d6f060] transition-all"
-                >
-                  Save &amp; Advance
-                </button>
-              </div>
-            </form>
+                  <div className="border-t border-brand-gray/60 my-2" />
+
+                  {/* Team 2 Score */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold truncate max-w-[200px] text-brand-primary">
+                      {selectedMatch.team2?.name || 'TBD'}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={score2}
+                      onChange={(e) => setScore2(e.target.value)}
+                      className="w-20 h-10 border border-brand-primary/10 rounded-xl text-center font-bold text-base bg-brand-light focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                {/* 🔄 substitution Quick Trigger */}
+                {onUpdateBracket && standbyRoster.length > 0 && selectedMatch.status === 'scheduled' && (
+                  <button
+                    type="button"
+                    onClick={() => { setIsSubbing(true); setSelectedSubPlayerId(''); }}
+                    className="w-full py-2 border border-dashed border-brand-primary/20 hover:border-brand-secondary hover:bg-brand-secondary/5 rounded-2xl font-bold text-xs text-brand-primary transition-all uppercase tracking-wider"
+                  >
+                    🔄 Substitute Injured/Missing Player
+                  </button>
+                )}
+
+                {/* ⚠️ Forfeit & Walkover Panel */}
+                <div className="bg-red-50/50 border border-red-200/50 rounded-2xl p-3.5 space-y-2 mt-4 select-none">
+                  <div className="text-[10px] font-black text-red-800 uppercase tracking-widest">
+                    ⚠️ Officiating Walkover / Forfeit
+                  </div>
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team1?.name}? ${selectedMatch.team2?.name} will advance.`);
+                        if (confirmed) {
+                          // Clear from court assignments
+                          const updated = [...courtAssignments];
+                          const idx = updated.findIndex(c => c.matchId === selectedMatch.id);
+                          if (idx !== -1) {
+                            updated[idx] = { courtNumber: updated[idx].courtNumber, matchId: null, status: 'available', timerStart: null, timerMode: null };
+                            updateCourts(updated);
+                          }
+                          onMatchScore(selectedMatch.id, 2, { score1: 0, score2: 1 });
+                          setSelectedMatch(null);
+                        }
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                    >
+                      {selectedMatch.team1?.name?.split(' / ')[0]} Forfeit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirmed = window.confirm(`Declare walkover/forfeit for ${selectedMatch.team2?.name}? ${selectedMatch.team1?.name} will advance.`);
+                        if (confirmed) {
+                          // Clear from court assignments
+                          const updated = [...courtAssignments];
+                          const idx = updated.findIndex(c => c.matchId === selectedMatch.id);
+                          if (idx !== -1) {
+                            updated[idx] = { courtNumber: updated[idx].courtNumber, matchId: null, status: 'available', timerStart: null, timerMode: null };
+                            updateCourts(updated);
+                          }
+                          onMatchScore(selectedMatch.id, 1, { score1: 1, score2: 0 });
+                          setSelectedMatch(null);
+                        }
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-red-100/60 hover:bg-red-200/60 text-red-800 font-bold text-xs transition-colors"
+                    >
+                      {selectedMatch.team2?.name?.split(' / ')[0]} Forfeit
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMatch(null)}
+                    className="flex-1 h-11 border border-brand-primary/15 rounded-xl font-bold text-sm text-brand-primary/80 hover:bg-brand-gray/20 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 h-11 bg-brand-secondary text-brand-primary font-bold text-sm rounded-xl hover:bg-[#d6f060] transition-all"
+                  >
+                    Save &amp; Advance
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
     </div>
+
+    {/* 📄 Print Section for offline physical score sheets */}
+    <div id="print-section" className="hidden print:block w-full p-4 font-sans bg-white text-black">
+      <div className="text-center border-b-2 border-black pb-4 mb-6">
+        <h1 className="text-2xl font-black uppercase tracking-wider">SmashBoard Official Scorecard Packet</h1>
+        <p className="text-xs font-semibold mt-1">Date: {new Date().toLocaleDateString()} · Generated via DinkSync</p>
+      </div>
+      
+      <div className="grid grid-cols-1 gap-8">
+        {allMatches.filter(m => m.status === 'scheduled' && m.team1 && m.team2 && m.team1.name !== 'TBD' && m.team2.name !== 'TBD').map(match => (
+          <div key={match.id} className="border-2 border-black rounded-2xl p-6 space-y-4 page-break-inside-avoid">
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Match ID: {match.id}</span>
+              <span className="text-xs font-bold uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full">Elimination Bracket</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="border-r pr-4">
+                <span className="text-[9px] uppercase font-bold text-gray-400">Team 1</span>
+                <div className="text-base font-bold mt-1 truncate">{match.team1?.name}</div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 1:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 2:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 3:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pl-4">
+                <span className="text-[9px] uppercase font-bold text-gray-400">Team 2</span>
+                <div className="text-base font-bold mt-1 truncate">{match.team2?.name}</div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 1:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 2:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Game 3:</span>
+                    <div className="w-16 h-8 border border-black rounded" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t pt-4 grid grid-cols-3 gap-4 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              <div className="border-t pt-8 border-dashed border-gray-300">Team 1 Signature</div>
+              <div className="border-t pt-8 border-dashed border-gray-300">Team 2 Signature</div>
+              <div className="border-t pt-8 border-dashed border-gray-300">Referee/Staff Signature</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+    </>
   );
 }

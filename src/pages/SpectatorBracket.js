@@ -35,6 +35,8 @@ const SpectatorBracket = ({ slug }) => {
     }
   };
 
+  const [ticker, setTicker] = useState(0);
+
   useEffect(() => {
     fetchBracket();
 
@@ -43,7 +45,15 @@ const SpectatorBracket = ({ slug }) => {
       fetchBracket(true);
     }, 30000);
 
-    return () => clearInterval(interval);
+    // 1-second ticker interval for live countdown clocks on spectator phones
+    const clockInterval = setInterval(() => {
+      setTicker(t => t + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(clockInterval);
+    };
   }, [slug]);
 
   if (status === 'loading') {
@@ -131,6 +141,61 @@ const SpectatorBracket = ({ slug }) => {
             </div>
           </div>
         </div>
+
+        {/* 🏟️ Live Court Assignments for Spectators */}
+        {bracket?.courtAssignments && bracket.courtAssignments.some(c => c.matchId) && (
+          <div className="bg-white border border-brand-gray/80 shadow-[0_4px_25px_rgb(0,0,0,0.01)] rounded-3xl p-5 mb-6 font-sans select-none animate-fade-in">
+            <h3 className="text-xs font-black text-brand-primary/50 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              🏟️ Active Court Assignments
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {bracket.courtAssignments.map(court => {
+                if (!court.matchId) return null;
+                
+                // Find match details
+                const allMatches = [
+                  ...(bracket.winnersMatches || []),
+                  ...(bracket.consolationMatches || []),
+                  ...(bracket.grandFinalsMatches || [])
+                ];
+                const match = allMatches.find(m => m.id === court.matchId);
+                if (!match) return null;
+
+                const elapsedSeconds = court.timerStart ? Math.floor((Date.now() - court.timerStart) / 1000) : 0;
+                let timerLabel = '';
+                let timerClass = 'bg-gray-100 text-gray-500';
+
+                if (court.timerMode === 'warmup') {
+                  const remaining = Math.max(0, 300 - elapsedSeconds);
+                  const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+                  const s = (remaining % 60).toString().padStart(2, '0');
+                  timerLabel = `⏱️ Warmup: ${m}:${s}`;
+                  timerClass = remaining === 0 ? 'bg-orange-500/20 text-orange-600 animate-pulse' : 'bg-orange-100 text-orange-500';
+                } else if (court.timerMode === 'match') {
+                  const m = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+                  const s = (elapsedSeconds % 60).toString().padStart(2, '0');
+                  timerLabel = `🎾 Play: ${m}:${s}`;
+                  timerClass = elapsedSeconds > 900 ? 'bg-red-500/20 text-red-600 animate-pulse' : 'bg-green-500/20 text-green-600';
+                }
+
+                return (
+                  <div key={court.courtNumber} className="border border-brand-gray/80 rounded-2xl p-3.5 space-y-2.5 bg-brand-light/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-black text-brand-primary">Court {court.courtNumber}</span>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${timerClass}`}>
+                        {timerLabel || court.status}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-black text-brand-primary/40 uppercase tracking-widest">{court.matchId}</div>
+                    <div className="text-xs font-bold text-brand-primary truncate">
+                      {match.team1?.name} <span className="opacity-40 font-semibold block text-[10px] my-0.2 text-center">vs</span> {match.team2?.name}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Read-Only Bracket View */}
         <BracketView 
