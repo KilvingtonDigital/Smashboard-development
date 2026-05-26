@@ -15,7 +15,7 @@ module.exports = defineConfig({
     reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
     timeout: 180 * 1000,            // 3 min per test
     use: {
-        baseURL: 'http://localhost:3000',
+        baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'on-first-retry',
@@ -47,7 +47,7 @@ module.exports = defineConfig({
             },
         },
     ],
-    webServer: {
+    webServer: process.env.PLAYWRIGHT_TEST_BASE_URL ? undefined : {
         command: 'npm start',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
