@@ -15,13 +15,13 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
 
         // Handle any initial dialogs
         const migrateBtn = page.getByRole('button', { name: /migrate data/i });
-        if (await migrateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (await migrateBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
             console.log('  → Migrate Data dialog found, clicking...');
             await migrateBtn.click();
             await page.waitForTimeout(500);
         }
         const continueBtn = page.getByRole('button', { name: /^Continue$/i });
-        if (await continueBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (await continueBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
             console.log('  → Continue dialog found, clicking...');
             await continueBtn.click();
             await page.waitForTimeout(500);
@@ -29,7 +29,7 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
 
         console.log('STEP 2: Resetting active tournament session...');
         const endBtn = page.locator('nav button').filter({ hasText: /End/i }).first();
-        const endVisible = await endBtn.isVisible({ timeout: 3000 }).catch(() => false);
+        const endVisible = await endBtn.isVisible({ timeout: 3500 }).catch(() => false);
         
         if (endVisible) {
             console.log('  → Active session detected. Triggering End modal...');
@@ -37,16 +37,16 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
             await page.waitForTimeout(800);
             
             const endClearBtn = page.getByRole('button', { name: 'End & Clear' });
-            if (await endClearBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            if (await endClearBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
                 console.log('  → Clicking End & Clear...');
                 await endClearBtn.click();
                 await page.waitForTimeout(800);
                 
                 const yesClearBtn = page.getByRole('button', { name: 'Yes, Clear Everything' });
-                if (await yesClearBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                if (await yesClearBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
                     console.log('  → Confirming Yes, Clear Everything...');
                     await yesClearBtn.click();
-                    await page.waitForTimeout(2500);
+                    await page.waitForTimeout(3000); // Wait for application session purge reload
                 }
             } else {
                 console.log('  → Modal buttons not found, escaping...');
@@ -55,6 +55,21 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
         }
 
         console.log('STEP 3: Setting up the 179 Players Division parameters...');
+        
+        // Handle any post-clear/reload dialog overlays that popped up again
+        const postMigrateBtn = page.getByRole('button', { name: /migrate data/i });
+        if (await postMigrateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log('  → Post-clear Migrate Data dialog found, clicking...');
+            await postMigrateBtn.click();
+            await page.waitForTimeout(800);
+        }
+        const postContinueBtn = page.getByRole('button', { name: /^Continue$/i });
+        if (await postContinueBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log('  → Post-clear Continue dialog found, clicking...');
+            await postContinueBtn.click();
+            await page.waitForTimeout(800);
+        }
+
         const setupTab = page.locator('nav button').filter({ hasText: /Setup/i }).first();
         await setupTab.click();
         await page.waitForTimeout(1000);
@@ -93,7 +108,7 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
         
         console.log('  → Clicking Parse & Add...');
         await page.getByRole('button', { name: 'Parse & add' }).click();
-        await page.waitForTimeout(6000); // Allow server/browser to digest bulk import
+        await page.waitForTimeout(7000); // Allow server/browser to digest bulk import
 
         console.log('STEP 5: Verifying Roster count...');
         const rosterTitle = page.locator('h3').filter({ hasText: /Roster/i }).first();
@@ -106,7 +121,7 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
 
         // Click Start Tournament
         await page.getByRole('button', { name: /Start Tournament/i }).click();
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(5000);
 
         console.log('STEP 7: Verifying schedule pairings on courts...');
         const scheduleTab = page.locator('nav button').filter({ hasText: /Schedule/i }).first();
