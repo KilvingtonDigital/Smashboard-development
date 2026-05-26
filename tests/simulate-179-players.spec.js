@@ -28,28 +28,39 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
         }
 
         console.log('STEP 2: Resetting active tournament session...');
-        const endBtn = page.locator('nav button').filter({ hasText: 'End' }).first();
+        const endBtn = page.locator('nav button').filter({ hasText: /End/i }).first();
         const endVisible = await endBtn.isVisible({ timeout: 3000 }).catch(() => false);
+        
         if (endVisible) {
-            console.log('  → Active session detected. Ending and clearing...');
+            console.log('  → Active session detected. Triggering End modal...');
             await endBtn.click();
-            await page.waitForTimeout(600);
-            const endClearBtn = page.getByRole('button', { name: /End & Clear/i });
+            await page.waitForTimeout(800);
+            
+            const endClearBtn = page.getByRole('button', { name: 'End & Clear' });
             if (await endClearBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                console.log('  → Clicking End & Clear...');
                 await endClearBtn.click();
-                await page.waitForTimeout(2000);
+                await page.waitForTimeout(800);
+                
+                const yesClearBtn = page.getByRole('button', { name: 'Yes, Clear Everything' });
+                if (await yesClearBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    console.log('  → Confirming Yes, Clear Everything...');
+                    await yesClearBtn.click();
+                    await page.waitForTimeout(2500);
+                }
             } else {
+                console.log('  → Modal buttons not found, escaping...');
                 await page.keyboard.press('Escape');
             }
         }
 
         console.log('STEP 3: Setting up the 179 Players Division parameters...');
-        const setupTab = page.locator('nav button').filter({ hasText: 'Setup' }).first();
+        const setupTab = page.locator('nav button').filter({ hasText: /Setup/i }).first();
         await setupTab.click();
         await page.waitForTimeout(1000);
 
         // Fill out Setup info
-        const nameInput = page.locator('input[placeholder*="Summer Classic"], input[type="text"]').first();
+        const nameInput = page.getByPlaceholder(/Friday Night/i).first();
         await nameInput.fill('Epic 179 Competitor Championship');
 
         // Select Open Division options
@@ -59,12 +70,11 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
         }
 
         console.log('STEP 4: Navigating to Roster tab to import 179 players...');
-        const rosterTab = page.locator('nav button').filter({ hasText: 'Roster' }).first();
+        const rosterTab = page.locator('nav button').filter({ hasText: /Roster/i }).first();
         await rosterTab.click();
         await page.waitForTimeout(1000);
 
-        // Generate 179 players spread across rating divisions:
-        // Beginner (2.5), Advanced Beginner (3.2), Intermediate (3.7), Advanced (4.5), Pro (5.5)
+        // Generate 179 players spread across rating divisions
         let bulkText = '';
         for (let i = 1; i <= 179; i++) {
             const divisions = [2.65, 3.25, 3.75, 4.25, 4.65, 5.25, 5.75];
@@ -83,7 +93,7 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
         
         console.log('  → Clicking Parse & Add...');
         await page.getByRole('button', { name: 'Parse & add' }).click();
-        await page.waitForTimeout(5000); // Allow server/browser to digest bulk import
+        await page.waitForTimeout(6000); // Allow server/browser to digest bulk import
 
         console.log('STEP 5: Verifying Roster count...');
         const rosterTitle = page.locator('h3').filter({ hasText: /Roster/i }).first();
@@ -96,15 +106,15 @@ test.describe('179 Player High-Volume Tournament Simulation', () => {
 
         // Click Start Tournament
         await page.getByRole('button', { name: /Start Tournament/i }).click();
-        await page.waitForTimeout(3000);
+        await page.waitForTimeout(4000);
 
         console.log('STEP 7: Verifying schedule pairings on courts...');
-        const scheduleTab = page.locator('nav button').filter({ hasText: 'Schedule' }).first();
+        const scheduleTab = page.locator('nav button').filter({ hasText: /Schedule/i }).first();
         await scheduleTab.click();
         await page.waitForTimeout(2000);
 
         // Check if courts are loaded
-        const court1 = page.locator('.col-span-1, .p-3, div').filter({ hasText: 'Court 1' }).first();
+        const court1 = page.locator('div').filter({ hasText: 'Court 1' }).first();
         await expect(court1).toBeVisible();
 
         console.log('STEP 8: Capturing visual audit screenshot...');
