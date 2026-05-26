@@ -420,6 +420,8 @@ const PickleballTournamentManager = () => {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [exportedThisSession, setExportedThisSession] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [selectedScanPlayerId, setSelectedScanPlayerId] = useState('');
   const [tournamentName, setTournamentName] = useState('');
   const [scoreSheet, setScoreSheet] = useState(null); // { courtNumber } | null
   // Schedule sub-tab: 'courts' | 'rounds'
@@ -2760,10 +2762,115 @@ const PickleballTournamentManager = () => {
 
         {tab === 'roster' && (
           <Card>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-brand-primary">Roster ({players.length})</h3>
-              <div className="text-xs text-brand-primary/70">Present: {presentPlayers.length}</div>
+            <div className="flex items-center justify-between border-b border-brand-gray pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-brand-primary">Roster ({players.length})</h3>
+                <div className="text-[10px] text-brand-primary/50 uppercase tracking-widest mt-0.5">Present: {presentPlayers.length}</div>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowQrScanner(prev => !prev);
+                  setSelectedScanPlayerId('');
+                }}
+                className="bg-brand-secondary text-brand-primary font-bold h-8 px-3.5 text-xs py-1 rounded-xl uppercase tracking-wider transition-colors shadow-soft"
+              >
+                {showQrScanner ? '✕ Close Scanner' : '🎟️ Contactless QR Scanner'}
+              </Button>
             </div>
+
+            {/* 🎟️ Contactless QR Check-In Scanner console */}
+            {showQrScanner && (
+              <div className="mt-4 p-5 rounded-3xl border border-brand-gray bg-slate-950 text-white space-y-4 font-sans select-none animate-fade-in">
+                <div className="text-center space-y-1">
+                  <span className="text-[10px] font-black text-brand-secondary uppercase tracking-widest block">
+                    SmashBoard Contactless QR Pass
+                  </span>
+                  <h4 className="text-base font-black uppercase text-white tracking-wider">
+                    Staff QR check-in terminal
+                  </h4>
+                </div>
+
+                {/* Pulsing Scanner laser viewport */}
+                <div className="w-56 h-56 mx-auto bg-slate-900 border-2 border-brand-secondary/40 rounded-3xl relative overflow-hidden flex items-center justify-center shadow-lg">
+                  <div 
+                    className="absolute w-full h-0.5 bg-red-500 shadow-[0_0_8px_#f43f5e] left-0"
+                    style={{
+                      animation: 'scanLaser 2s linear infinite',
+                      top: '0%'
+                    }}
+                  />
+                  <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-brand-secondary" />
+                  <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-brand-secondary" />
+                  <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-brand-secondary" />
+                  <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-brand-secondary" />
+
+                  <style dangerouslySetInnerHTML={{__html: `
+                    @keyframes scanLaser {
+                      0% { top: 10%; }
+                      50% { top: 90%; }
+                      100% { top: 10%; }
+                    }
+                  `}} />
+
+                  <span className="text-4xl animate-pulse">🎟️</span>
+                </div>
+
+                <div className="max-w-xs mx-auto space-y-3">
+                  {players.filter(p => !p.present).length > 0 ? (
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block text-center">
+                        Select Checked-out Player Pass
+                      </label>
+                      <select
+                        value={selectedScanPlayerId}
+                        onChange={(e) => setSelectedScanPlayerId(e.target.value)}
+                        className="w-full h-10 border border-slate-800 rounded-xl px-3 font-semibold text-xs bg-slate-900 text-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                      >
+                        <option value="">-- Standby QR Passes --</option>
+                        {players.filter(p => !p.present).map(p => (
+                          <option key={p.id} value={p.id}>{p.name} (DUPR {p.rating || 'Unrated'})</option>
+                        ))}
+                      </select>
+
+                      <Button
+                        disabled={!selectedScanPlayerId}
+                        onClick={() => {
+                          const target = players.find(p => p.id === selectedScanPlayerId);
+                          if (!target) return;
+                          
+                          togglePresent(selectedScanPlayerId);
+                          
+                          if (window.AudioContext || window.webkitAudioContext) {
+                            try {
+                              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                              const osc = audioCtx.createOscillator();
+                              const gain = audioCtx.createGain();
+                              osc.connect(gain);
+                              gain.connect(audioCtx.destination);
+                              osc.type = 'sine';
+                              osc.frequency.setValueAtTime(1200, audioCtx.currentTime); 
+                              gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                              osc.start();
+                              osc.stop(audioCtx.currentTime + 0.15); 
+                            } catch (e) {}
+                          }
+
+                          alert(`[SUCCESS] Contactless scan confirmed: Checked in ${target.name}!`);
+                          setSelectedScanPlayerId('');
+                        }}
+                        className="w-full bg-brand-secondary text-brand-primary font-black h-11 text-xs uppercase tracking-wider shadow-lg rounded-xl hover:bg-[#d6f060] transition-colors"
+                      >
+                        ⚡ Scan Player QR Pass
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center text-[10px] text-green-400 font-extrabold uppercase tracking-wide py-3 bg-slate-900 border border-slate-800 rounded-xl">
+                      🎉 All registered players checked in present!
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {rounds.length > 0 && (
               <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">

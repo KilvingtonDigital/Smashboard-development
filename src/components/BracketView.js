@@ -63,7 +63,67 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
       });
     }
   };
+  // 📈 DUPR WEIGHTED ODDS & UPSET PREDICTORS
+  const getDuprRating = (name) => {
+    if (!name) return 0;
+    const found = (players || []).find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    return found ? Number(found.rating) || 0 : 0;
+  };
 
+  const getTeamAvgRating = (teamName) => {
+    if (!teamName) return 0;
+    const names = teamName.split(' / ');
+    const ratings = names.map(n => getDuprRating(n)).filter(r => r > 0);
+    if (ratings.length === 0) return 0;
+    return ratings.reduce((a, b) => a + b, 0) / ratings.length;
+  };
+
+  const calcMatchOdds = (team1Name, team2Name) => {
+    const r1 = getTeamAvgRating(team1Name);
+    const r2 = getTeamAvgRating(team2Name);
+    if (r1 === 0 || r2 === 0) return null;
+    const diff = r1 - r2;
+    const prob1 = Math.round(100 / (1 + Math.exp(-2.5 * diff)));
+    const prob2 = 100 - prob1;
+    return { prob1, prob2 };
+  };
+
+  const checkUpset = (match) => {
+    if (match.status !== 'completed') return false;
+    const r1 = getTeamAvgRating(match.team1?.name);
+    const r2 = getTeamAvgRating(match.team2?.name);
+    if (r1 === 0 || r2 === 0) return false;
+    const winner = match.winner === 'team1' ? 1 : 2;
+    if (winner === 1 && r2 > r1 + 0.1) return true;
+    if (winner === 2 && r1 > r2 + 0.1) return true;
+    return false;
+  };
+
+  // 💬 STAFF INTERCOM & REF ALERTS
+  const addCourtAlert = (courtNumber, issue) => {
+    if (!onUpdateBracket) return;
+    const updated = { ...bracket };
+    const alerts = updated.courtAlerts || [];
+    alerts.push({
+      id: `al-${Date.now()}`,
+      courtNumber,
+      issue,
+      ts: Date.now()
+    });
+    updated.courtAlerts = alerts;
+    onUpdateBracket(updated);
+    triggerToast(`🚨 Alert Logged: Court ${courtNumber} - ${issue}`);
+  };
+
+  const resolveCourtAlert = (alertId) => {
+    if (!onUpdateBracket) return;
+    const updated = { ...bracket };
+    if (updated.courtAlerts) {
+      updated.courtAlerts = updated.courtAlerts.filter(a => a.id !== alertId);
+    }
+    onUpdateBracket(updated);
+    triggerToast('Alert marked resolved.');
+  };
   // 🥇 PODIUM CALCULATIONS
   const getPodiumWinners = () => {
     let gold = null;
@@ -489,6 +549,11 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
     // Check if this match is assigned to a court
     const assignedCourt = courtAssignments.find(c => c.matchId === match.id);
 
+    const upset = checkUpset(match);
+    const odds = !isCompleted && !isBye && match.team1 && match.team2 && match.team1.name !== 'TBD' && match.team2.name !== 'TBD'
+      ? calcMatchOdds(match.team1.name, match.team2.name)
+      : null;
+
     return (
       <div
         key={match.id}
@@ -505,7 +570,12 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
               Ct {assignedCourt.courtNumber}
             </span>
           )}
-          {isCompleted && <span className="text-green-600">✓ Completed</span>}
+          {upset && (
+            <span className="text-[8px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-md animate-pulse">
+              🔥 Upset!
+            </span>
+          )}
+          {isCompleted && !upset && <span className="text-green-600">✓ Completed</span>}
           {isBye && <span className="text-brand-primary/60">Bye</span>}
         </div>
 
@@ -536,6 +606,13 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
             )}
           </div>
         </div>
+
+        {/* Dynamic sigmoidal DUPR odds indicator */}
+        {odds && (
+          <div className="mt-2 text-[8px] font-bold text-brand-primary/40 uppercase tracking-wider text-center border-t border-brand-gray/60 pt-1.5 leading-none">
+            Odds: <span className="font-extrabold text-brand-primary">{odds.prob1}%</span> v <span className="font-extrabold text-brand-primary">{odds.prob2}%</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -680,6 +757,32 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
             </span>
           </div>
 
+          {/* 🚨 Active Intercom Alerts List */}
+          {bracket.courtAlerts && bracket.courtAlerts.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2.5 select-none animate-pulse">
+              <span className="text-[10px] font-black text-red-800 uppercase tracking-widest block">
+                🚨 Active Court Coordinator Alerts
+              </span>
+              <div className="space-y-1.5">
+                {bracket.courtAlerts.map(alert => (
+                  <div key={alert.id} className="flex justify-between items-center bg-white border border-red-100 p-2.5 rounded-xl text-xs font-semibold text-brand-primary">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-500 text-white font-extrabold text-[9px] px-2 py-0.5 rounded-full">Ct {alert.courtNumber}</span>
+                      <span className="font-extrabold text-red-800">{alert.issue}</span>
+                      <span className="text-[9px] text-brand-primary/40 font-medium">({new Date(alert.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})</span>
+                    </div>
+                    <button
+                      onClick={() => resolveCourtAlert(alert.id)}
+                      className="bg-green-100 hover:bg-green-200 text-green-800 font-bold text-[9px] px-3 py-1 rounded-lg transition-colors uppercase tracking-wider"
+                    >
+                      Mark Resolved
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Grid of Courts */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {courtAssignments.map(court => {
@@ -761,6 +864,23 @@ export default function BracketView({ bracket, onMatchScore, readOnly = false, o
                       >
                         📢 Ping
                       </button>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            addCourtAlert(court.courtNumber, e.target.value);
+                            e.target.value = "";
+                          }
+                        }}
+                        className="col-span-2 py-1 rounded-lg border border-brand-gray bg-white text-[8px] font-black text-brand-primary text-center uppercase tracking-widest outline-none cursor-pointer"
+                      >
+                        <option value="">🚨 Send Staff Alert</option>
+                        <option value="Net Height Loose">Net Height Loose</option>
+                        <option value="Ball Replacement Required">Ball Replacement</option>
+                        <option value="Medical Assistance Required (Minor)">Medical Aid (Minor)</option>
+                        <option value="Medical Assistance Required (Major)">Medical Aid (Major)</option>
+                        <option value="Ref Help Requested">Ref Help Required</option>
+                      </select>
                       <button
                         onClick={() => releaseCourt(court.courtNumber)}
                         className="col-span-2 py-0.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-700 font-bold text-[8px] transition-colors uppercase tracking-widest"

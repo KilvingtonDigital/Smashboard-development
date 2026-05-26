@@ -5,6 +5,7 @@ const SpectatorBracket = ({ slug }) => {
   const [bracket, setBracket] = useState(null);
   const [orgName, setOrgName] = useState('');
   const [activeTournament, setActiveTournament] = useState(null);
+  const [players, setPlayers] = useState([]);
   const [status, setStatus] = useState('loading'); // 'loading' | 'bracket' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -23,6 +24,7 @@ const SpectatorBracket = ({ slug }) => {
       if (data.activeTournament) {
         setActiveTournament(data.activeTournament);
         setBracket(data.activeTournament.bracket);
+        setPlayers(data.activeTournament.players || []);
         setStatus('bracket');
       } else {
         setStatus('no_active_tournament');
@@ -218,6 +220,7 @@ const SpectatorBracket = ({ slug }) => {
           bracket={bracket} 
           onMatchScore={() => {}} 
           readOnly={true} 
+          players={players}
         />
 
         {/* 💰 Booked Event Sponsors & Vendors */}

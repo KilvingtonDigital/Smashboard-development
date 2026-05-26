@@ -10,6 +10,7 @@ import TermsOfService from './pages/TermsOfService';
 import ResetPassword from './components/ResetPassword';
 import ErrorBoundary from './components/ErrorBoundary';
 import SpectatorBracket from './pages/SpectatorBracket';
+import SpectatorTvBracket from './pages/SpectatorTvBracket';
 
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
@@ -36,8 +37,12 @@ function AppContent() {
 
   // Check if we are on the spectator bracket route
   if (path.startsWith('/spectate/')) {
-    const slug = path.split('/spectate/')[1];
+    let slug = path.split('/spectate/')[1];
     if (slug) {
+      if (slug.endsWith('/tv')) {
+        slug = slug.substring(0, slug.length - 3);
+        return <SpectatorTvBracket slug={slug} />;
+      }
       return <SpectatorBracket slug={slug} />;
     }
   }

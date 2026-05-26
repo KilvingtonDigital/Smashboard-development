@@ -175,7 +175,8 @@ exports.getActiveBracket = async (req, res) => {
         restricted_age: activeTournament.restricted_age || 'all',
         restricted_gender: activeTournament.restricted_gender || 'all',
         bracket_format: activeTournament.bracket_format || 'single_elim',
-        bracket: activeTournament.tournament_data ? activeTournament.tournament_data.bracket : null
+        bracket: activeTournament.tournament_data ? activeTournament.tournament_data.bracket : null,
+        players: activeTournament.tournament_data ? activeTournament.tournament_data.players : []
       } : null
     });
   } catch (error) {
