@@ -1,6 +1,9 @@
 name: Isolated baseline tests
 
 on:
+  push:
+    branches:
+      - test/baseline-ci-2026-10-16
   workflow_dispatch:
 
 permissions:
