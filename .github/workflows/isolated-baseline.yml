@@ -1,0 +1,32 @@
+name: Isolated baseline tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      REACT_APP_API_URL: "http://127.0.0.1:5000"
+    steps:
+      - name: Check out development test branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check backend JavaScript syntax
+        run: |
+          find backend/src -name '*.js' -type f -print0 | xargs -0 -n 1 node --check
+      - name: Run existing unit tests without watch mode
+        run: npm test -- --watch=false --runInBand
+      - name: Compile production frontend
+        run: npm run build
